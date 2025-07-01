@@ -5,7 +5,6 @@
 using namespace llm_task;
 
 static constexpr const char *default_url = "https://api.deepseek.com/v1/chat/completions";
-static constexpr const char *default_model = "deepseek-chat";
 static constexpr const char *auth_str = "Bearer ";
 static constexpr uint32_t default_streaming_ttft = 100 * 1000; // ms
 static constexpr uint32_t default_streaming_tpft = 1 * 1000; // ms
@@ -18,15 +17,15 @@ LLMClient::LLMClient() :
 {
 }
 
-LLMClient::LLMClient(std::string api_key) :
-	LLMClient(std::move(api_key), default_url)
+LLMClient::LLMClient(const std::string& api_key) :
+	LLMClient(api_key, default_url)
 {
 }
 
-LLMClient::LLMClient(std::string api_key,
-					 std::string base_url) :
-	api_key(std::move(api_key)),
-	base_url(std::move(base_url))
+LLMClient::LLMClient(const std::string& api_key,
+					 const std::string& base_url) :
+	api_key(api_key),
+	base_url(base_url)
 {
 	this->redirect_max = default_redirect_max;
 	this->streaming_ttft = default_streaming_ttft;

@@ -12,6 +12,7 @@ cc_library(
 		"src/chat_request.h",
 		"src/chat_response.h",
 	],
+	includes = ["src"],
 	deps = [
 		"@workflow//:http",
 	],
@@ -23,3 +24,30 @@ cc_library(
 	visibility = ["//visibility:public"],
 )
 
+cc_binary(
+	name = "demo",
+	srcs = ["examples/demo.cc"],
+	deps = [":llm_task",
+			"@workflow//:http",
+			"@workflow//:workflow_hdrs"],
+	linkopts = [
+		'-lpthread',
+		'-lssl',
+		'-lcrypto',
+	],
+	visibility = ["//visibility:public"],
+)
+
+cc_binary(
+	name = "deepseek_chatbot",
+	srcs = ["examples/deepseek_chatbot.cc"],
+	deps = [":llm_task",
+			"@workflow//:http",
+			"@workflow//:workflow_hdrs"],
+	linkopts = [
+		'-lpthread',
+		'-lssl',
+		'-lcrypto',
+	],
+	visibility = ["//visibility:public"],
+)

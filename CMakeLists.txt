@@ -43,13 +43,19 @@ install(TARGETS ${LIBRARY_NAME}
 )
 install(DIRECTORY src/ DESTINATION include FILES_MATCHING PATTERN "*.h")
 
-add_executable(deepseek_chatbot examples/deepseek_chatbot.cc)
-target_link_libraries(deepseek_chatbot PRIVATE
-	pthread
-	ssl
-	crypto
-	rt
-	${LIBRARY_NAME}
-	workflow
-)
+
+set(LINK_LIBS)
+if(APPLE)
+	set(LINK_LIBS pthread ssl crypto ${LIBRARY_NAME} workflow)
+else()
+	set(LINK_LIBS pthread ssl crypto rt ${LIBRARY_NAME} workflow)
+endif()
+
+file(GLOB EXAMPLES_SRC "examples/*.cc")
+
+foreach(EXAMPLE_FILE ${EXAMPLES_SRC})
+	get_filename_component(EXE_NAME ${EXAMPLE_FILE} NAME_WE)
+	add_executable(${EXE_NAME} ${EXAMPLE_FILE})
+	target_link_libraries(${EXE_NAME} PRIVATE ${LINK_LIBS} ${LIBRARY_NAME} workflow)
+endforeach()
 

@@ -2,9 +2,11 @@
 
 namespace llm_task {
 
+static constexpr const char *default_model = "deepseek-chat";
+
 // default : for normal task
 ChatCompletionRequest::ChatCompletionRequest() :
-	model("deepseek-chat"),
+	model(default_model),
 	frequency_penalty(0),
 	max_tokens(4096),
 	presence_penalty(0),

@@ -31,8 +31,8 @@ public:
 
 public:
 	LLMClient();
-	LLMClient(std::string api_key);
-	LLMClient(std::string api_key, std::string base_url);
+	LLMClient(const std::string& api_key);
+	LLMClient(const std::string& api_key, const std::string& base_url);
 
 private:
 	void extract(WFHttpChunkedTask *task,
