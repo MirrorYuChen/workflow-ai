@@ -30,7 +30,6 @@ struct example_context
 		CHAT_STATE_BEGIN = 0,
 		CHAT_STATE_REASONING,
 		CHAT_STATE_CONTEXT,
-		CHAT_STATE_FINISH,
 	};
 
 	void reset_state()
@@ -59,13 +58,6 @@ struct example_context
 		state = CHAT_STATE_CONTEXT;
 		return ret;
 	}
-
-/*
-	bool set_finish()
-	{
-		state = CHAT_STATE_FINISH;
-	}
-*/
 };
 
 void next_query(SeriesWork *series);
@@ -79,7 +71,7 @@ void sig_handler(int signo)
 void print_http_info(const protocol::HttpRequest *req,
 					 const protocol::HttpResponse *resp)
 {
-	fprintf(stderr, "\n[HTTP REQUEST]\n");
+	fprintf(stderr, "\n[HTTP REQUEST]\n\n");
 	fprintf(stderr, "%s %s %s\r\n", req->get_method(),
 									req->get_http_version(),
 									req->get_request_uri());
@@ -90,7 +82,7 @@ void print_http_info(const protocol::HttpRequest *req,
 	while (req_cursor.next(name, value))
 		fprintf(stderr, "%s: %s\r\n", name.c_str(), value.c_str());
 
-	fprintf(stderr, "\n[HTTP RESPONSE]\n");
+	fprintf(stderr, "\n[HTTP RESPONSE]\n\n");
 
 	fprintf(stderr, "%s %s %s\r\n", resp->get_http_version(),
 									resp->get_status_code(),
@@ -103,25 +95,57 @@ void print_http_info(const protocol::HttpRequest *req,
 	fprintf(stderr, "\r\n");
 }
 
-void print_llm_info(const ChatCompletionRequest *req,
-					const ChatCompletionResponse *resp)
+void print_llm_info(const ChatResponse *resp)
 {
-	if (!resp)
-		return;
-
-	fprintf(stderr, "\n[LLM INFO]\n");
-	if (!resp->choices.empty() && resp->choices[0].finish_reason.empty())
+	fprintf(stderr, "\n\n[LLM INFO]\n\n");
+	if (resp->choices[0].finish_reason.empty())
 	{
 		fprintf(stderr, "finish_reason: %s\n",
 				resp->choices[0].finish_reason.c_str());
 	}
+	const auto& delta = resp->choices[0].delta;
+	if (!delta.tool_calls.empty())
+	{
+		fprintf(stderr, "tool_calls:\n");
+		for (const auto& tool : delta.tool_calls)
+		{
+			fprintf(stderr, "  id: %s, type: %s, function.name: %s,"
+					"function.arguments: %s\n",
+					tool.id.c_str(), tool.type.c_str(),
+					tool.function.name.c_str(),
+					tool.function.arguments.c_str());
+		}
+	}
 
-	const auto &usage = resp->usage;
+	if (!resp->choices[0].logprobs.content.empty())
+	{
+		fprintf(stderr, "logprobs:\n");
+		for (const auto& logprob : resp->choices[0].logprobs.content)
+		{
+			fprintf(stderr, "  token: %s, logprob: %.4f\n",
+					logprob.current_info.token.c_str(),
+					logprob.current_info.logprob);
+			if (!logprob.top_logprobs.empty())
+			{
+				fprintf(stderr, "	top_logprobs: ");
+				for (const auto& top : logprob.top_logprobs)
+				{
+					fprintf(stderr, "[%s: %.4f] ",
+							top.token.c_str(), top.logprob);
+				}
+				fprintf(stderr, "\n");
+			}
+		}
+	}
+
+	const auto& usage = resp->usage;
 	fprintf(stderr, "prompt_tokens: %d\n", usage.prompt_tokens);
 	fprintf(stderr, "completion_tokens: %d\n", usage.completion_tokens);
 	fprintf(stderr, "total_tokens: %d\n", usage.total_tokens);
-	fprintf(stderr, "prompt_cache_hit_tokens: %d\n", usage.prompt_cache_hit_tokens);
-	fprintf(stderr, "prompt_cache_miss_tokens: %d\n", usage.prompt_cache_miss_tokens);
+	fprintf(stderr, "prompt_cache_hit_tokens: %d\n",
+			usage.prompt_cache_hit_tokens);
+	fprintf(stderr, "prompt_cache_miss_tokens: %d\n",
+			usage.prompt_cache_miss_tokens);
 	fprintf(stderr, "reasoning_tokens: %d\n", usage.reasoning_tokens);
 }
 
@@ -136,13 +160,12 @@ void callback(WFHttpChunkedTask *task,
 			const auto& choice = response->choices[0];
 			if (request->model == "deepseek-reasoner")
 			{
-				fprintf(stderr, "\n<think>\n%s\n<\\think>\n",
+				fprintf(stderr, "<think>\n\n%s\n<\\think>\n\n",
 						choice.message.reasoning_content.c_str());
 			}
-			fprintf(stderr, "\n%s\n", choice.message.content.c_str());
+			fprintf(stderr, "\n%s", choice.message.content.c_str());
+			print_llm_info(response);
 		}
-
-		print_llm_info(request, response);
 	}
 	else
 	{
@@ -159,8 +182,8 @@ void extract(WFHttpChunkedTask *task,
 			 ChatCompletionRequest *request,
 			 ChatCompletionChunk *chunk)
 {
-	if (task->get_state () != WFT_STATE_SUCCESS ||
-		request->model != "deepseek-reasoner" ||
+	if (task->get_state() != WFT_STATE_UNDEFINED ||
+		request->stream == false ||
 		chunk->choices.empty())
 	{
 		return;
@@ -173,20 +196,19 @@ void extract(WFHttpChunkedTask *task,
 		choice.delta.content.length() == 0)
 	{
 		if (ctx->set_reasoning())
-			fprintf(stderr, "\n<think>\n");
+			fprintf(stderr, "<think>\n\n");
 		fprintf(stderr, "%s", choice.delta.reasoning_content.c_str());
 	}
 	else if (choice.delta.reasoning_content.length() == 0 &&
 			 choice.delta.content.length())
 	{
 		if (ctx->set_context())
-			fprintf(stderr, "\n<\\think>\n");
+			fprintf(stderr, "\n\n<\\think>\n\n");
 		fprintf(stderr, "%s", choice.delta.content.c_str());
 	}
-	else if (choice.finish_reason.c_str())
+	else if (choice.finish_reason.length())
 	{
-//		if (ctx->set_finish())
-		fprintf(stderr, "\n");
+		print_llm_info(chunk);
 	}
 }
 
@@ -212,13 +234,12 @@ void next_query(SeriesWork *series)
 
 		query[len - 1] = '\0';
 
-		ChatCompletionRequest request;
+		llm_task::ChatCompletionRequest request;
 		request.model = ctx->model;
 		request.stream = ctx->stream;
 		request.messages.push_back({"user", query});
 
 		auto *next = ctx->client->create_chat_task(request, extract, callback);
-
 		series->push_back(next);
 		ctx->reset_state();
 		break;
@@ -231,7 +252,7 @@ int main(int argc, char *argv[])
 	{
 		fprintf(stderr, "USAGE: %s <api_key> [model] [stream]\n"
 				"	api_key - API KEY for DeepSeek\n"
-				"	model - set 'deepseek-chat' or 'deepseek-reasoning'\n"
+				"	model - set 'deepseek-chat' or 'deepseek-reasoner'\n"
 				"	stream - set 'true' for streaming. default: 'false'\n",
 				argv[0]);
 		exit(1);
@@ -245,7 +266,7 @@ int main(int argc, char *argv[])
 
 	struct example_context ctx;
 	ctx.client = &client;
-	ctx.model = "deepseek-reasoning";
+	ctx.model = "deepseek-reasoner";
 	ctx.stream = true;
 
 	if (argc >= 3)
@@ -279,6 +300,7 @@ int main(int argc, char *argv[])
 
 	series->set_context(&ctx);
 	series->start();
+
 	wait_group.wait(); // pause main thread
 
 	return 0;
