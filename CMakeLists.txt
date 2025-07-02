@@ -13,9 +13,10 @@ else()
 endif()
 
 add_library(${LIBRARY_NAME} STATIC
-	src/llm_client.cc
 	src/chat_request.cc
 	src/chat_response.cc
+	src/llm_client.cc
+	src/llm_memory.cc
 )
 
 target_include_directories(${LIBRARY_NAME} PUBLIC 

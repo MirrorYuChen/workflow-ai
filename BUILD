@@ -3,14 +3,16 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 cc_library(
 	name = "llm_task",
 	srcs = [
-		"src/llm_client.cc",
 		"src/chat_request.cc",
 		"src/chat_response.cc",
+		"src/llm_client.cc",
+		"src/llm_memory.cc",
 	],
 	hdrs = [
-		"src/llm_client.h",
 		"src/chat_request.h",
 		"src/chat_response.h",
+		"src/llm_client.h",
+		"src/llm_memory.h",
 	],
 	includes = ["src"],
 	deps = [

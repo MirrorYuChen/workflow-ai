@@ -8,6 +8,7 @@
 #include "workflow/WFTaskFactory.h"
 #include "workflow/WFFacilities.h"
 #include "llm_client.h"
+#include "llm_memory.h"
 
 using namespace llm_task;
 
@@ -23,6 +24,12 @@ struct example_context
 	std::string model;
 	bool stream;
 
+	// for memory
+	llm_task::Memory *memory;
+	std::string session_id = "default"; // for this session
+	std::string stream_role;			// save role for streaming
+	std::string stream_content;			// save whole content for streaming
+
 	// for printing response
 	int state;
 	enum
@@ -30,6 +37,7 @@ struct example_context
 		CHAT_STATE_BEGIN = 0,
 		CHAT_STATE_REASONING,
 		CHAT_STATE_CONTEXT,
+		CHAT_STATE_FINISH,
 	};
 
 	void reset_state()
@@ -57,6 +65,16 @@ struct example_context
 
 		state = CHAT_STATE_CONTEXT;
 		return ret;
+	}
+
+	void set_finish()
+	{
+		state = CHAT_STATE_FINISH;
+	}
+
+	bool is_finish()
+	{
+		return state == CHAT_STATE_FINISH ? true : false;
 	}
 };
 
@@ -153,24 +171,40 @@ void callback(WFHttpChunkedTask *task,
 			  ChatCompletionRequest *request,
 			  ChatCompletionResponse *response)
 {
+	example_context *ctx = (example_context *)series_of(task)->get_context();
+	bool success = false;
+
 	if (task->get_state() == WFT_STATE_SUCCESS)
 	{
 		if (!request->stream && !response->choices.empty())
 		{
-			const auto& choice = response->choices[0];
+			const auto& msg = response->choices[0].message;
 			if (request->model == "deepseek-reasoner")
 			{
 				fprintf(stderr, "<think>\n\n%s\n<\\think>\n\n",
-						choice.message.reasoning_content.c_str());
+						msg.reasoning_content.c_str());
 			}
-			fprintf(stderr, "\n%s", choice.message.content.c_str());
+			fprintf(stderr, "%s\n", msg.content.c_str());
+
 			print_llm_info(response);
+
+			ctx->memory->add_message(ctx->session_id,
+				{std::move(msg.role), std::move(msg.content)});
+			success = true;
+		}
+		else if (ctx->is_finish()) // stream and success finished
+		{
+			ctx->memory->add_message(ctx->session_id,
+				{std::move(ctx->stream_role), std::move(ctx->stream_content)});
+			success = true;
 		}
 	}
-	else
+
+	if (!success)
 	{
 		fprintf(stderr, "Task state: %d error: %d\n",
 				task->get_state(), task->get_error());
+		ctx->memory->clear_last_query(ctx->session_id); // remove if failed
 	}
 
 	print_http_info(task->get_req(), task->get_resp());
@@ -205,9 +239,16 @@ void extract(WFHttpChunkedTask *task,
 		if (ctx->set_context())
 			fprintf(stderr, "\n\n<\\think>\n\n");
 		fprintf(stderr, "%s", choice.delta.content.c_str());
+		ctx->stream_content.append(std::move(choice.delta.content));
 	}
-	else if (choice.finish_reason.length())
+	else if (!choice.delta.role.empty()) // begin
 	{
+		ctx->stream_role = std::move(choice.delta.role);
+		ctx->stream_content.clear(); // in case not ended by finish reason
+	}
+	else if (choice.finish_reason.length()) // end
+	{
+		ctx->set_finish();
 		print_llm_info(chunk);
 	}
 }
@@ -237,7 +278,13 @@ void next_query(SeriesWork *series)
 		llm_task::ChatCompletionRequest request;
 		request.model = ctx->model;
 		request.stream = ctx->stream;
+
+		// get history memory
+		request.messages = ctx->memory->get_history(ctx->session_id);
 		request.messages.push_back({"user", query});
+
+		// add memory into history
+		ctx->memory->add_message(ctx->session_id, {"user", query});
 
 		auto *next = ctx->client->create_chat_task(request, extract, callback);
 		series->push_back(next);
@@ -263,11 +310,14 @@ int main(int argc, char *argv[])
 	stop_flag = false;
 
 	LLMClient client(argv[1]);
+	Memory memory;
 
 	struct example_context ctx;
 	ctx.client = &client;
 	ctx.model = "deepseek-reasoner";
 	ctx.stream = true;
+	ctx.memory = &memory;
+	ctx.session_id = "main";
 
 	if (argc >= 3)
 		ctx.model = argv[2];

@@ -1,3 +1,5 @@
+#include <string>
+#include <cctype>
 #include "chat_request.h"
 
 namespace llm_task {
@@ -41,6 +43,40 @@ static ChatCompletionRequest TranslationRequest()
 }
 */
 
+std::string escape_string(const std::string &s)
+{
+	std::string result;
+	result.reserve(s.length() * 2);
+
+	for (char c : s)
+	{
+		switch (c)
+		{
+			case '"':  result += "\\\""; break;
+			case '\\': result += "\\\\"; break;
+			case '\b': result += "\\b";  break;
+			case '\f': result += "\\f";  break;
+			case '\n': result += "\\n";  break;
+			case '\r': result += "\\r";  break;
+			case '\t': result += "\\t";  break;
+			default:
+				if (c >= '\x00' && c <= '\x1f')
+				{
+					// 快速十六进制格式化
+					char hex[7];
+					snprintf(hex, sizeof(hex), "\\u%04x",
+							 static_cast<unsigned char>(c));
+					result += hex;
+				}
+				else
+				{
+					result += c;
+				}
+		}
+	}
+	return result;
+}
+
 std::string ChatCompletionRequest::to_json() const 
 {
 	std::string json = "{";
@@ -48,8 +84,9 @@ std::string ChatCompletionRequest::to_json() const
 	json += "\"messages\":[";
 	for (size_t i = 0; i < messages.size(); i++) 
 	{
+		std::string escaped_content = escape_string(messages[i].content);
 		json += "{";
-		json += "\"content\":\"" + messages[i].content + "\",";
+		json += "\"content\":\"" + escaped_content + "\",";
 		json += "\"role\":\"" + messages[i].role + "\"";
 		if (!messages[i].name.empty())
 			json += ",\"name\":\"" + messages[i].name + "\"";
@@ -113,6 +150,7 @@ std::string ChatCompletionRequest::to_json() const
 		json += ",\"top_logprobs\":" + std::to_string(*top_logprobs);
 
 	json += "}";
+
 	return json;
 }
 

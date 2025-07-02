@@ -137,10 +137,10 @@ public:
 			std::string content;
 			std::string reasoning_content;
 			std::vector<ToolCall> tool_calls;
-		} delta;
+		} delta; // TODO: combine message, delta and request Message
 
-		int index;					// 该 completion 在模型生成的 completion 的选择列表中的索引
-		Logprobs logprobs;			// 该 choice 的对数概率信息
+		int index;					// 该completion在模型生成的选择列表中的索引
+		Logprobs logprobs;			// 该choice的对数概率信息
 		std::string finish_reason;	// 完成原因，可为空
 	};
 
