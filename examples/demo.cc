@@ -9,7 +9,7 @@
 #include "workflow/WFFacilities.h"
 #include "llm_client.h"
 
-using namespace llm_task;
+using namespace wfai;
 
 volatile bool stop_flag;
 WFFacilities::WaitGroup wait_group(1);
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
 	// client.set_redirect_max();
 	// client.set_ttft();
 
-	llm_task::ChatCompletionRequest request;
+	wfai::ChatCompletionRequest request;
 	request.model = "deepseek-reasoner";
 	request.stream = true;
 	request.messages.push_back({"user", "hi"});

@@ -6,7 +6,15 @@
 #include <cstring>
 #include "workflow/json_parser.h"
 
-namespace llm_task {
+namespace wfai {
+
+struct Tool
+{
+	std::string type; // DeepSeek only support 'function'
+	std::string name;
+	std::string description;
+	std::string parameters; // JSON格式的参数定义
+};
 
 struct Message
 {
@@ -41,8 +49,8 @@ public:
 	std::string *stream_options = nullptr; // TODO
 	double temperature;
 	double top_p;
-	std::string *tools = nullptr; // TODO
-	std::string tool_choice; // TODO
+	std::vector<Tool> tools;
+	std::string tool_choice; // none, auto, required
 	bool logprobs;
 	int *top_logprobs = nullptr;
 
@@ -50,7 +58,7 @@ public:
 //	class LLMClient;
 };
 
-} // namespace llm_task
+} // namespace wfai
 
 #endif // CHAT_REQUEST_H 
 

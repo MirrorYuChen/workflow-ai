@@ -1,6 +1,6 @@
 #include "llm_memory.h"
 
-namespace llm_task
+namespace wfai
 {
 
 void Memory::add_message(const std::string &id, const Message &msg)
@@ -36,4 +36,4 @@ void Memory::clear_last_query(const std::string &id)
 		messages.pop_back();
 }
 
-} // namespace llm_task
+} // namespace wfai

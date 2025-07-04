@@ -1,6 +1,6 @@
 #include "chat_response.h"
 
-namespace llm_task {
+namespace wfai {
 
 ChatResponse::ChatResponse(ChatResponse&& move)
 {
@@ -374,4 +374,4 @@ bool ChatCompletionResponse::append_buffer(const void* data, size_t size)
 	return true;
 }
 
-} // namespace llm_task
+} // namespace wfai

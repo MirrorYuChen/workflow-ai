@@ -1,8 +1,11 @@
-#include "llm_client.h"
+#include "workflow/HttpMessage.h"
+#include "workflow/HttpUtil.h"
+#include "workflow/WFTaskFactory.h"
 #include "workflow/HttpMessage.h"
 #include "workflow/WFHttpChunkedClient.h"
+#include "llm_client.h"
 
-using namespace llm_task;
+using namespace wfai;
 
 static constexpr const char *default_url = "https://api.deepseek.com/v1/chat/completions";
 static constexpr const char *auth_str = "Bearer ";
@@ -162,7 +165,7 @@ void LLMClient::extract(WFHttpChunkedTask *task,
 			len = end - begin;
 			if (len > 0)
 			{
-				llm_task::ChatCompletionChunk chunk;
+				wfai::ChatCompletionChunk chunk;
 				bool ret = chunk.parse_json(begin, len);
 				if (ret)
 				{

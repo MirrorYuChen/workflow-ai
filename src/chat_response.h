@@ -7,7 +7,8 @@
 #include <functional>
 #include "workflow/json_parser.h"
 
-namespace llm_task {
+namespace wfai
+{
 
 /*
 struct TokenDetails
@@ -121,23 +122,18 @@ public:
 	{
 		Choice() : index(0) {}
 		
-		// for non-streaming 
-		struct 
-		{
-			std::string role;
-			std::string content;
-			std::string reasoning_content;
-			std::vector<ToolCall> tool_calls; 
-		} message;
-
-		// for streaming : one chunk for delta
-		struct
+		struct Message
 		{
 			std::string role;
 			std::string content;
 			std::string reasoning_content;
 			std::vector<ToolCall> tool_calls;
-		} delta; // TODO: combine message, delta and request Message
+		};
+
+		// for non-streaming : whole message
+		Message message;
+		// for streaming : one chunk for delta
+		Message delta;
 
 		int index;					// 该completion在模型生成的选择列表中的索引
 		Logprobs logprobs;			// 该choice的对数概率信息
@@ -214,6 +210,6 @@ private:
 	bool parse_content(const json_object_t *object, Choice& choice) override;
 };
 
-} // namespace llm_task
+} // namespace wfai
 
 #endif // CHAT_RESPONSE_H 

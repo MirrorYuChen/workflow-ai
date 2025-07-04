@@ -1,18 +1,11 @@
-#include <signal.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <string>
-#include "workflow/HttpMessage.h"
-#include "workflow/HttpUtil.h"
-#include "workflow/WFTaskFactory.h"
-#include "workflow/WFFacilities.h"
 #include "workflow/WFHttpChunkedClient.h"
-#include "workflow/json_parser.h"
 #include "chat_response.h"
 #include "chat_request.h"
 
-namespace llm_task {
+namespace wfai {
 
 class LLMClient
 {

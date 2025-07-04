@@ -10,7 +10,7 @@
 #include "llm_client.h"
 #include "llm_memory.h"
 
-using namespace llm_task;
+using namespace wfai;
 
 #define MAX_CONTENT_LENGTH 1024
 
@@ -25,7 +25,7 @@ struct example_context
 	bool stream;
 
 	// for memory
-	llm_task::Memory *memory;
+	wfai::Memory *memory;
 	std::string session_id = "default"; // for this session
 	std::string stream_role;			// save role for streaming
 	std::string stream_content;			// save whole content for streaming
@@ -113,7 +113,7 @@ void print_http_info(const protocol::HttpRequest *req,
 	fprintf(stderr, "\r\n");
 }
 
-void print_llm_info(const ChatResponse *resp)
+void print_llm_info(const ChatResponse *resp, bool stream)
 {
 	fprintf(stderr, "\n\n[LLM INFO]\n\n");
 	if (resp->choices[0].finish_reason.empty())
@@ -121,11 +121,16 @@ void print_llm_info(const ChatResponse *resp)
 		fprintf(stderr, "finish_reason: %s\n",
 				resp->choices[0].finish_reason.c_str());
 	}
-	const auto& delta = resp->choices[0].delta;
-	if (!delta.tool_calls.empty())
+	const std::vector<ToolCall> *tool_calls;
+	if (stream)
+		tool_calls = &resp->choices[0].delta.tool_calls;
+	else
+		tool_calls = &resp->choices[0].message.tool_calls;
+
+	if (!tool_calls->empty())
 	{
 		fprintf(stderr, "tool_calls:\n");
-		for (const auto& tool : delta.tool_calls)
+		for (const auto& tool : *tool_calls)
 		{
 			fprintf(stderr, "  id: %s, type: %s, function.name: %s,"
 					"function.arguments: %s\n",
@@ -186,7 +191,7 @@ void callback(WFHttpChunkedTask *task,
 			}
 			fprintf(stderr, "%s\n", msg.content.c_str());
 
-			print_llm_info(response);
+			print_llm_info(response, true);
 
 			ctx->memory->add_message(ctx->session_id,
 				{std::move(msg.role), std::move(msg.content)});
@@ -244,12 +249,12 @@ void extract(WFHttpChunkedTask *task,
 	else if (!choice.delta.role.empty()) // begin
 	{
 		ctx->stream_role = std::move(choice.delta.role);
-		ctx->stream_content.clear(); // in case not ended by finish reason
+		ctx->stream_content.clear(); // finish_reason could be null
 	}
 	else if (choice.finish_reason.length()) // end
 	{
 		ctx->set_finish();
-		print_llm_info(chunk);
+		print_llm_info(chunk, false);
 	}
 }
 
@@ -275,7 +280,7 @@ void next_query(SeriesWork *series)
 
 		query[len - 1] = '\0';
 
-		llm_task::ChatCompletionRequest request;
+		wfai::ChatCompletionRequest request;
 		request.model = ctx->model;
 		request.stream = ctx->stream;
 

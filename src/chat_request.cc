@@ -2,7 +2,7 @@
 #include <cctype>
 #include "chat_request.h"
 
-namespace llm_task {
+namespace wfai {
 
 static constexpr const char *default_model = "deepseek-chat";
 
@@ -102,11 +102,13 @@ std::string ChatCompletionRequest::to_json() const
 		json += ",\"stream\":true";
 	if (stream_options)
 		json += ",\"stream_options\":\"" + *stream_options + "\"";
-	if (tools)
+/*
+ * TODO: serialize tools for tool call
+	if (!tools.empty())
 		json += ",\"tools\":\"" + *tools + "\"";
 	if (tool_choice != "none")
 		json += ",\"tool_choice\":\"" + tool_choice + "\"";
-
+*/
 	if (frequency_penalty != 0)
 		json += ",\"frequency_penalty\":" + std::to_string(frequency_penalty);
 	if (max_tokens != 4096)
@@ -154,4 +156,4 @@ std::string ChatCompletionRequest::to_json() const
 	return json;
 }
 
-} // namespace llm_task
+} // namespace wfai

@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include "chat_request.h"
 
-namespace llm_task
+namespace wfai
 {
 
 class Memory
@@ -21,6 +21,6 @@ private:
 	std::unordered_map<std::string, std::vector<Message>> sessions_;
 };
 
-} // namespace llm_task
+} // namespace wfai
 
 #endif // LLM_TASK_MEMORY_H
