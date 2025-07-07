@@ -67,6 +67,7 @@ struct ToolCall
 {
 	std::string id;				// tool 调用的 ID
 	std::string type;			// tool 的类型，目前仅支持 function
+	int index;
 	struct
 	{
 		std::string name;		// 模型调用的 function 名
@@ -164,7 +165,7 @@ private:
 	bool parse_token_logprob(const json_value_t* token_val, TokenLogprob& token_info);
 	bool parse_top_logprobs(const json_value_t* top_logprobs_val, std::vector<TopLogprob>& top_logprobs);
 
-	virtual bool parse_content(const json_object_t *object, Choice& choice) = 0;
+	virtual bool parse_message(const json_object_t *object, Choice& choice) = 0;
 };
 
 class ChatCompletionResponse : public ChatResponse
@@ -191,7 +192,7 @@ public:
 	virtual ~ChatCompletionResponse() { }
 
 private:
-	bool parse_content(const json_object_t *object, Choice& choice) override;
+	bool parse_message(const json_object_t *object, Choice& choice) override;
 };
 
 class ChatCompletionChunk : public ChatResponse
@@ -207,7 +208,7 @@ public:
 	virtual ~ChatCompletionChunk() { }
 
 private:
-	bool parse_content(const json_object_t *object, Choice& choice) override;
+	bool parse_message(const json_object_t *object, Choice& choice) override;
 };
 
 } // namespace wfai

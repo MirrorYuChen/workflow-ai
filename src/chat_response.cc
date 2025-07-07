@@ -58,7 +58,7 @@ bool ChatResponse::parse_choice(const json_value_t *choice)
 	if (finish_val && json_value_type(finish_val) == JSON_VALUE_STRING)
 		new_choice.finish_reason = json_value_string(finish_val);
 
-	if (!this->parse_content(choice_obj, new_choice))
+	if (!this->parse_message(choice_obj, new_choice))
 		return false;
 
 	const json_value_t *logprobs_val = json_object_find("logprobs", choice_obj);
@@ -286,7 +286,7 @@ ChatCompletionResponse& ChatCompletionResponse::operator=(ChatCompletionResponse
 	return *this;
 }
 
-bool ChatCompletionChunk::parse_content(const json_object_t *object, Choice& choice)
+bool ChatCompletionChunk::parse_message(const json_object_t *object, Choice& choice)
 {
 	const json_value_t *delta_val = json_object_find("delta", object);
 	if (!delta_val || json_value_type(delta_val) != JSON_VALUE_OBJECT)
@@ -314,7 +314,7 @@ bool ChatCompletionChunk::parse_content(const json_object_t *object, Choice& cho
 		stream_content.first_chunk = std::string(msg, size);
 	}
 */
-	return true;
+
 }
 
 ChatCompletionChunk::ChatCompletionChunk(ChatCompletionChunk&& move) :
@@ -330,7 +330,7 @@ ChatCompletionChunk& ChatCompletionChunk::operator=(ChatCompletionChunk&& move)
 	return *this;
 }
 
-bool ChatCompletionResponse::parse_content(const json_object_t *object, Choice& choice)
+bool ChatCompletionResponse::parse_message(const json_object_t *object, Choice& choice)
 {
 	const json_value_t *message_val = json_object_find("message", object);
 	if (!message_val || json_value_type(message_val) != JSON_VALUE_OBJECT)
@@ -351,6 +351,48 @@ bool ChatCompletionResponse::parse_content(const json_object_t *object, Choice& 
 	const json_value_t *reasoning_val = json_object_find("reasoning_content", message_obj);
 	if (reasoning_val && json_value_type(reasoning_val) == JSON_VALUE_STRING)
 		choice.message.reasoning_content = json_value_string(reasoning_val);
+
+	const json_value_t *tool_calls_val = json_object_find("tool_calls", message_obj);
+	if (tool_calls_val && json_value_type(tool_calls_val) == JSON_VALUE_ARRAY) {
+		const json_array_t *tool_calls_arr = json_value_array(tool_calls_val);
+		const json_value_t *tool_call_val;
+
+		json_array_for_each(tool_call_val, tool_calls_arr) 
+		{
+			if (!tool_call_val || json_value_type(tool_call_val) != JSON_VALUE_OBJECT)
+				continue;
+
+			const json_object_t *tc_obj = json_value_object(tool_call_val);
+			ToolCall tool_call;
+
+			const json_value_t *id_val = json_object_find("id", tc_obj);
+			if (id_val && json_value_type(id_val) == JSON_VALUE_STRING)
+				tool_call.id = json_value_string(id_val);
+
+			const json_value_t *type_val = json_object_find("type", tc_obj);
+			if (type_val && json_value_type(type_val) == JSON_VALUE_STRING)
+				tool_call.type = json_value_string(type_val);
+
+			const json_value_t *function_val = json_object_find("function", tc_obj);
+			if (function_val && json_value_type(function_val) == JSON_VALUE_OBJECT) {
+				const json_object_t *f_obj = json_value_object(function_val);
+
+				const json_value_t *name_val = json_object_find("name", f_obj);
+				if (name_val && json_value_type(name_val) == JSON_VALUE_STRING)
+					tool_call.function.name = json_value_string(name_val);
+
+				const json_value_t *args_val = json_object_find("arguments", f_obj);
+				if (args_val && json_value_type(args_val) == JSON_VALUE_STRING)
+					tool_call.function.arguments = json_value_string(args_val);
+			}
+
+			const json_value_t *index_val = json_object_find("index", tc_obj);
+			if (index_val && json_value_type(index_val) == JSON_VALUE_NUMBER)
+				tool_call.index = static_cast<int>(json_value_number(index_val));
+ 
+			choice.message.tool_calls.push_back(std::move(tool_call));
+		}
+	}
 
 	return true;
 }

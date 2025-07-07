@@ -102,13 +102,45 @@ std::string ChatCompletionRequest::to_json() const
 		json += ",\"stream\":true";
 	if (stream_options)
 		json += ",\"stream_options\":\"" + *stream_options + "\"";
-/*
- * TODO: serialize tools for tool call
+
 	if (!tools.empty())
-		json += ",\"tools\":\"" + *tools + "\"";
-	if (tool_choice != "none")
-		json += ",\"tool_choice\":\"" + tool_choice + "\"";
-*/
+	{
+		json += ",\"tools\":[";
+		for (size_t i = 0; i < tools.size(); i++)
+		{
+			const Tool& tool = tools[i];
+			json += "{";
+			json += "\"type\":\"" + tool.type + "\",";
+			json += "\"function\":{";
+			json += "\"name\":\"" + escape_string(tool.function.name) + "\"";
+
+			if (!tool.function.description.empty())
+			{
+				json += ",\"description\":\"" +
+					escape_string(tool.function.description) + "\"";
+			}
+
+			if (!tool.function.parameters.empty())
+				json += ",\"parameters\":" + tool.function.parameters;
+
+			json += "}"; // end function
+			json += "}"; // end tool
+
+			if (i < tools.size() - 1)
+				json += ",";
+		}
+		json += "]";
+
+		if (!tool_choice.empty())
+		{
+			json += ",\"tool_choice\":";
+			if (tool_choice == "auto" || tool_choice == "none")
+				json += "\"" + tool_choice + "\"";
+			else
+				json += tool_choice;
+		}
+	}
+
 	if (frequency_penalty != 0)
 		json += ",\"frequency_penalty\":" + std::to_string(frequency_penalty);
 	if (max_tokens != 4096)

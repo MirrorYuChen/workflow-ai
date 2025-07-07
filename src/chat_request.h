@@ -8,12 +8,17 @@
 
 namespace wfai {
 
+struct Function
+{
+	std::string description;
+	std::string name;
+	std::string parameters; // JSON Schema 字符串
+};
+
 struct Tool
 {
-	std::string type; // DeepSeek only support 'function'
-	std::string name;
-	std::string description;
-	std::string parameters; // JSON格式的参数定义
+	std::string type = "function";
+	Function function;
 };
 
 struct Message
