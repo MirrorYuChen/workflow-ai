@@ -103,43 +103,7 @@ std::string ChatCompletionRequest::to_json() const
 	if (stream_options)
 		json += ",\"stream_options\":\"" + *stream_options + "\"";
 
-	if (!tools.empty())
-	{
-		json += ",\"tools\":[";
-		for (size_t i = 0; i < tools.size(); i++)
-		{
-			const Tool& tool = tools[i];
-			json += "{";
-			json += "\"type\":\"" + tool.type + "\",";
-			json += "\"function\":{";
-			json += "\"name\":\"" + escape_string(tool.function.name) + "\"";
-
-			if (!tool.function.description.empty())
-			{
-				json += ",\"description\":\"" +
-					escape_string(tool.function.description) + "\"";
-			}
-
-			if (!tool.function.parameters.empty())
-				json += ",\"parameters\":" + tool.function.parameters;
-
-			json += "}"; // end function
-			json += "}"; // end tool
-
-			if (i < tools.size() - 1)
-				json += ",";
-		}
-		json += "]";
-
-		if (!tool_choice.empty())
-		{
-			json += ",\"tool_choice\":";
-			if (tool_choice == "auto" || tool_choice == "none")
-				json += "\"" + tool_choice + "\"";
-			else
-				json += tool_choice;
-		}
-	}
+	json += this->tools_to_json();
 
 	if (frequency_penalty != 0)
 		json += ",\"frequency_penalty\":" + std::to_string(frequency_penalty);
@@ -155,20 +119,7 @@ std::string ChatCompletionRequest::to_json() const
 		json += ",\"stop\":[";
 		for (size_t i = 0; i < stop.size(); ++i)
 		{
-			json += "\"";
-			if (stop[i] == "\\")
-				json += "\\\\";
-			else if (stop[i] == "\"")
-				json += "\\\"";
-			else if (stop[i] == "\n")
-				json += "\\n";
-			else if (stop[i] == "\r")
-				json += "\\r";
-			else if (stop[i] == "\t")
-				json += "\\t";
-			else
-				json += stop[i];
-			json += "\"";
+			json += "\"" + escape_string(stop[i]) + "\"";
 			if (i < stop.size() - 1)
 				json += ",";
 		}
@@ -184,6 +135,104 @@ std::string ChatCompletionRequest::to_json() const
 		json += ",\"top_logprobs\":" + std::to_string(*top_logprobs);
 
 	json += "}";
+
+	return json;
+}
+
+std::string ChatCompletionRequest::tools_to_json() const
+{
+	std::string json;
+
+	if (!tool_choice.empty())
+	{
+		json += ",\"tool_choice\":";
+		if (tool_choice == "auto" || tool_choice == "none")
+			json += "\"" + tool_choice + "\"";
+		else
+			json += tool_choice;
+	}
+
+	if (tool_choice == "none" || tools.empty())
+		return json;
+
+	json += ",\"tools\":[";
+	for (size_t i = 0; i < tools.size(); i++)
+	{
+		const Tool& tool = tools[i];
+		json += "{";
+		json += "\"type\":\"" + tool.type + "\",";
+		json += "\"function\":{";
+		json += "\"name\":\"" + escape_string(tool.function.name) + "\"";
+
+		if (!tool.function.description.empty())
+		{
+			json += ",\"description\":\"" +
+				escape_string(tool.function.description) + "\"";
+		}
+
+		const auto& params = tool.function.parameters;
+		json += ",\"parameters\":{";
+		json += "\"type\":\"" + params.type + "\"";
+
+		if (!params.properties.empty())
+		{
+			json += ",\"properties\":{";
+			size_t prop_count = 0;
+			for (const auto& pair : params.properties)
+			{
+				const auto& prop = pair.second;
+				json += "\"" + escape_string(pair.first) + "\":{";
+				json += "\"type\":\"" + escape_string(prop.type) + "\"";
+
+				if (!prop.description.empty())
+				{
+					json += ",\"description\":\"" +
+							escape_string(prop.description) + "\"";
+				}
+
+				if (!prop.enum_values.empty())
+				{
+					json += ",\"enum\":[";
+					for (size_t j = 0; j < prop.enum_values.size(); j++)
+					{
+						json += "\"" + escape_string(prop.enum_values[j]) + "\"";
+						if (j < prop.enum_values.size() - 1)
+							json += ",";
+					}
+					json += "]";
+				}
+
+				if (!prop.default_value.empty())
+				{
+					json += ",\"default\":\"" +
+							escape_string(prop.default_value) + "\"";
+				}
+
+				json += "}";
+				if (++prop_count < params.properties.size())
+					json += ",";
+			}
+			json += "}";
+		}
+
+		if (!params.required.empty())
+		{
+			json += ",\"required\":[";
+			for (size_t j = 0; j < params.required.size(); j++)
+			{
+				json += "\"" + escape_string(params.required[j]) + "\"";
+				if (j < params.required.size() - 1)
+					json += ",";
+			}
+			json += "]";
+		}
+
+		json += "}}}"; // end parameters, function, tool
+
+		if (i < tools.size() - 1)
+			json += ",";
+	}
+	json += "]";
 
 	return json;
 }

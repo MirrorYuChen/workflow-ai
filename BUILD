@@ -7,12 +7,14 @@ cc_library(
 		"src/chat_response.cc",
 		"src/llm_client.cc",
 		"src/llm_memory.cc",
+		"src/llm_function.cc",
 	],
 	hdrs = [
 		"src/chat_request.h",
 		"src/chat_response.h",
 		"src/llm_client.h",
 		"src/llm_memory.h",
+		"src/llm_function.h",
 	],
 	includes = ["src"],
 	deps = [

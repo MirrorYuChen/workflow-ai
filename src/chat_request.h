@@ -4,21 +4,41 @@
 #include <string>
 #include <vector>
 #include <cstring>
+#include <map>
 #include "workflow/json_parser.h"
 
 namespace wfai {
 
-struct Function
+struct Property
 {
+	std::string type;
 	std::string description;
-	std::string name;
-	std::string parameters; // JSON Schema 字符串
+	std::vector<std::string> enum_values;	// 可选，如果为空则表示没有
+	std::string default_value;				// 可选，空表示没有，可能不太好
 };
 
 struct Tool
 {
 	std::string type = "function";
+
+	struct Function
+	{
+		std::string name;
+		std::string description;
+
+		struct ParametersSchema
+		{
+			std::string type = "object";
+			std::map<std::string, Property> properties;
+			std::vector<std::string> required;
+		};
+
+		ParametersSchema parameters;
+	};
+
 	Function function;
+
+	Tool() = default;
 };
 
 struct Message
@@ -41,6 +61,9 @@ class ChatCompletionRequest
 public:
 	std::string to_json() const;
 	ChatCompletionRequest();
+
+private:
+	std::string tools_to_json() const;
 
 public:
 	std::vector<Message> messages;

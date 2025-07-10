@@ -7,8 +7,7 @@
 #include <functional>
 #include "workflow/json_parser.h"
 
-namespace wfai
-{
+namespace wfai {
 
 /*
 struct TokenDetails

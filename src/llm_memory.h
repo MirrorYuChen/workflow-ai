@@ -6,8 +6,7 @@
 #include <unordered_map>
 #include "chat_request.h"
 
-namespace wfai
-{
+namespace wfai {
 
 class Memory
 {

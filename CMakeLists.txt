@@ -17,6 +17,7 @@ add_library(${LIBRARY_NAME} STATIC
 	src/chat_response.cc
 	src/llm_client.cc
 	src/llm_memory.cc
+	src/llm_function.cc
 )
 
 target_include_directories(${LIBRARY_NAME} PUBLIC 

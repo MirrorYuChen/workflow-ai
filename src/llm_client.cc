@@ -35,9 +35,10 @@ LLMClient::LLMClient(const std::string& api_key,
 	this->streaming_tpft = default_streaming_tpft;
 	this->ttft = default_no_streaming_ttft;
 	this->tpft = default_no_streaming_tpft;
+	this->function_manager = nullptr;
 }
 
-WFHttpChunkedTask* LLMClient::create_chat_task(ChatCompletionRequest request,
+WFHttpChunkedTask *LLMClient::create_chat_task(ChatCompletionRequest request,
 											   llm_extract_t extract,
 											   llm_callback_t callback)
 {
@@ -62,6 +63,58 @@ WFHttpChunkedTask* LLMClient::create_chat_task(ChatCompletionRequest request,
 		std::move(callback)
 	);
 
+	return this->create(req, std::move(extract_handler), std::move(callback_handler));
+}
+
+WFHttpChunkedTask *LLMClient::create_chat_with_tools(ChatCompletionRequest request,
+													 llm_extract_t extract,
+													 llm_callback_t callback)
+{
+	if (!this->function_manager)
+	{
+		return this->create_chat_task(std::move(request),
+									  std::move(extract),
+									  std::move(callback));
+	}
+
+	ChatCompletionRequest *req = new ChatCompletionRequest(std::move(request));
+	ChatCompletionResponse *resp = new ChatCompletionResponse();
+
+	auto tools = this->function_manager->get_functions();
+	for (const auto& tool : tools)
+		req->tools.emplace_back(tool);
+
+	if (req->tool_choice == "none")
+		req->tool_choice = "auto";
+
+	auto extract_handler = std::bind(
+//		&LLMClient::extract_with_tools,
+		&LLMClient::extract,
+		this,
+		std::placeholders::_1,
+		req,
+		resp,
+		std::move(extract)
+	);
+
+	auto callback_handler = std::bind(
+//		&LLMClient::callback_with_tools,
+		&LLMClient::callback,
+		this,
+		std::placeholders::_1,
+		req,
+		resp,
+		std::move(callback)
+	);
+
+	return this->create(req, std::move(extract_handler), std::move(callback_handler));
+}
+
+
+WFHttpChunkedTask *LLMClient::create(ChatCompletionRequest *req,
+									 extract_t extract_handler,
+									 callback_t callback_handler)
+{
 	auto *task = client.create_chunked_task(
 		this->base_url,
 		this->redirect_max,
@@ -85,7 +138,7 @@ WFHttpChunkedTask* LLMClient::create_chat_task(ChatCompletionRequest request,
 	http_req->add_header_pair("Content-Type", "application/json");
 	http_req->add_header_pair("Connection", "keep-alive");
 	http_req->set_method("POST");
-	
+
 	std::string body = req->to_json();
 	http_req->append_output_body(body.data(), body.size());
 
@@ -101,6 +154,8 @@ void LLMClient::callback(WFHttpChunkedTask *task,
 	{
 		resp->parse_json();
 		// TODO: if (!ret) set error
+
+		// TODO: process for tools_call
 
 		if (callback)
 			callback(task, req, resp);
@@ -126,9 +181,7 @@ void LLMClient::extract(WFHttpChunkedTask *task,
 	
 	if (!msg_chunk->get_chunk_data(&msg, &size))
 	{
-		// TODO
-		//if (strncmp("[DONE]", msg, size) != 0)
-		//	fprintf(stderr, "Error. Invalid chunk data.\n");
+		// TODO : mark error: invalid chunk data
 		return;
 	}
 
@@ -176,5 +229,15 @@ void LLMClient::extract(WFHttpChunkedTask *task,
 			}
 		}
 	}
+}
+
+void LLMClient::set_function_manager(FunctionManager *manager)
+{
+	this->function_manager = manager;
+}
+
+void LLMClient::add_function(const FunctionDefinition& function)
+{
+	this->functions.push_back(function);
 }
 
