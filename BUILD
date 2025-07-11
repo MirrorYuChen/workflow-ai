@@ -55,3 +55,17 @@ cc_binary(
 	],
 	visibility = ["//visibility:public"],
 )
+
+cc_binary(
+	name = "tool_call",
+	srcs = ["examples/tool_call.cc"],
+	deps = [":llm_task",
+			"@workflow//:http",
+			"@workflow//:workflow_hdrs"],
+	linkopts = [
+		'-lpthread',
+		'-lssl',
+		'-lcrypto',
+	],
+	visibility = ["//visibility:public"],
+)
