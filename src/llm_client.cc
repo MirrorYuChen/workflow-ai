@@ -15,6 +15,29 @@ static constexpr uint32_t default_no_streaming_ttft = 500 * 1000; // ms
 static constexpr uint32_t default_no_streaming_tpft = 100 * 1000; // ms
 static constexpr int default_redirect_max = 3;
 
+// for streaming
+// to collect the argument in tool_calls in each chunk
+bool append_tool_call_from_chunk(const ChatCompletionChunk& chunk,
+								 ChatCompletionResponse *resp)
+{
+	if (resp->choices.empty()) // first time to mark
+	{
+		ChatResponse::Choice choice;
+		choice.message.tool_calls.push_back(chunk.choices[0].delta.tool_calls[0]);
+		resp->choices.push_back(choice);
+		return true;
+	}
+
+	// not the first time
+	if (resp->choices[0].message.tool_calls.empty())
+		return false;
+
+	resp->choices[0].message.tool_calls[0].function.arguments +=
+		chunk.choices[0].delta.tool_calls[0].function.arguments;
+
+	return true;
+}
+
 LLMClient::LLMClient() :
 	LLMClient("", default_url)
 {
@@ -151,20 +174,11 @@ void LLMClient::callback(WFHttpChunkedTask *task,
 						 llm_callback_t callback)
 {
 	if (!req->stream)
-	{
 		resp->parse_json();
-		// TODO: if (!ret) set error
+	// TODO: if (!ret) set error
 
-		// TODO: process for tools_call
-
-		if (callback)
-			callback(task, req, resp);
-	}
-	else
-	{
-		if (callback)
-			callback(task, req, nullptr);
-	}
+	if (callback)
+		callback(task, req, resp);
 
 	delete req;
 	delete resp;
@@ -218,10 +232,17 @@ void LLMClient::extract(WFHttpChunkedTask *task,
 			len = end - begin;
 			if (len > 0)
 			{
-				wfai::ChatCompletionChunk chunk;
+				ChatCompletionChunk chunk;
 				bool ret = chunk.parse_json(begin, len);
 				if (ret)
 				{
+					if (!chunk.choices.empty() &&
+						!chunk.choices[0].delta.tool_calls.empty())
+					{
+						ret = append_tool_call_from_chunk(chunk, resp);
+						//TODO:
+					}
+
 					if (extract)
 						extract(task, req, &chunk);
 				}

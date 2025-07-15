@@ -33,30 +33,33 @@ void callback(WFHttpChunkedTask *task,
 
 	fprintf(stderr, "Response status: %s\n", resp->get_status_code());
 
-	if (!request->stream && response && !response->choices.empty())
+	if (!response->choices.empty())
 	{
 		if (!response->choices[0].message.tool_calls.empty())
 		{
 			fprintf(stderr, "\n=== Tool Calls Detected ===\n");
 			for (const auto& tc : response->choices[0].message.tool_calls)
 			{
-			fprintf(stderr, "Tool ID: %s\n", tc.id.c_str());
-			fprintf(stderr, "Type: %s\n", tc.type.c_str());
-			fprintf(stderr, "Function: %s\n", tc.function.name.c_str());
-			fprintf(stderr, "Arguments: %s\n", tc.function.arguments.c_str());
-			fprintf(stderr, "----------------------------\n");
+				fprintf(stderr, "Tool ID: %s\n", tc.id.c_str());
+				fprintf(stderr, "Type: %s\n", tc.type.c_str());
+				fprintf(stderr, "Function: %s\n", tc.function.name.c_str());
+				fprintf(stderr, "Arguments: %s\n", tc.function.arguments.c_str());
+				fprintf(stderr, "----------------------------\n");
 			}
 		}
 
-		if (request->model == "deepseek-reasoner" &&
-			!response->choices[0].message.reasoning_content.empty())
+		if (!request->stream == true)
 		{
-			fprintf(stderr, "\n<think>\n%s\n<\\think>\n",
-					response->choices[0].message.reasoning_content.c_str());
-		}
+			if (request->model == "deepseek-reasoner" &&
+				!response->choices[0].message.reasoning_content.empty())
+			{
+				fprintf(stderr, "\n<think>\n%s\n<\\think>\n",
+						response->choices[0].message.reasoning_content.c_str());
+			}
 
-		fprintf(stderr, "\nResponse Content:\n%s\n",
-			response->choices[0].message.content.c_str());
+			fprintf(stderr, "\nResponse Content:\n%s\n",
+				response->choices[0].message.content.c_str());
+		}
 	}
 
 	wait_group.done();
@@ -68,18 +71,6 @@ void extract(WFHttpChunkedTask *task,
 {
 	if (chunk && !chunk->choices.empty())
 	{
-		if (!chunk->choices[0].delta.tool_calls.empty())
-		{
-			fprintf(stderr, "Tool call detected in stream:\n");
-			for (const auto& tc : chunk->choices[0].delta.tool_calls)
-			{
-				fprintf(stderr, "Tool ID: %s\n", tc.id.c_str());
-				fprintf(stderr, "Function: %s\n", tc.function.name.c_str());
-				fprintf(stderr, "Arguments: %s\n", tc.function.arguments.c_str());
-				fprintf(stderr, "----------------------------\n");
-			}
-		}
-	
 		if (!chunk->choices[0].delta.reasoning_content.empty())
 		{
 			fprintf(stderr, "Reasoning: %s\n",
@@ -118,7 +109,7 @@ int main(int argc, char *argv[])
 
 	wfai::ChatCompletionRequest request;
 	request.model = "deepseek-chat";
-	request.stream = false;
+	request.stream = true;
 	request.messages.push_back({"system", "You are a helpful assistant"});
 	request.messages.push_back({"user", "深圳现在的天气怎么样？"});
 
@@ -127,10 +118,10 @@ int main(int argc, char *argv[])
 	weather_tool.type = "function";
 	weather_tool.function.name = "get_current_weather";
 	weather_tool.function.description = "获取指定地点的当前天气信息";
-	
+
 	// 设置参数模式
 	weather_tool.function.parameters.type = "object";
-	
+
 	// 添加位置参数属性
 	wfai::Property location_prop;
 	location_prop.type = "string";
