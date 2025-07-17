@@ -1,0 +1,17 @@
+name: BAZEL CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Bazel
+        uses: bazelbuild/setup-bazelisk@v3
+      - name: Build with Bazel
+        run: bazel build ...
