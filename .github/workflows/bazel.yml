@@ -14,4 +14,4 @@ jobs:
       - name: Set up Bazel
         uses: bazelbuild/setup-bazelisk@v3
       - name: Build with Bazel
-        run: bazel build ...
+        run: bazel build ... --enable_workspace
