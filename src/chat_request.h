@@ -80,7 +80,7 @@ public:
 	std::vector<Tool> tools;
 	std::string tool_choice; // none, auto, required
 	bool logprobs;
-	int *top_logprobs = nullptr;
+	int top_logprobs;
 
 //friend:
 //	class LLMClient;

@@ -128,6 +128,26 @@ bool ChatResponse::parse_usage(const json_value_t *usage_val)
 	if (tt_val && json_value_type(tt_val) == JSON_VALUE_NUMBER)
 		usage.total_tokens = json_value_number(tt_val);
 
+	const json_value_t *pcht_val = json_object_find("prompt_cache_hit_tokens", u_obj);
+	if (pcht_val && json_value_type(pcht_val) == JSON_VALUE_NUMBER)
+		usage.prompt_cache_hit_tokens = json_value_number(pcht_val);
+
+	const json_value_t *pcmt_val = json_object_find("prompt_cache_miss_tokens", u_obj);
+	if (pcmt_val && json_value_type(pcmt_val) == JSON_VALUE_NUMBER)
+		usage.prompt_cache_miss_tokens = json_value_number(pcmt_val);
+
+	const json_value_t *ctd_val = json_object_find("completion_tokens_details", u_obj);
+	if (ctd_val && json_value_type(ctd_val) == JSON_VALUE_OBJECT)
+	{
+		const json_object_t *d_obj = json_value_object(ctd_val);
+		if (d_obj)
+		{
+			const json_value_t *ct_val = json_object_find("cached_tokens", d_obj);
+			if (ct_val && json_value_type(ct_val) == JSON_VALUE_NUMBER)
+				usage.prompt_tokens_details.cached_tokens = json_value_number(ct_val);
+		}
+	}
+
 	return true;
 }
 
@@ -204,7 +224,7 @@ bool ChatResponse::parse_token_logprob(const json_value_t *token_val,
 	return true;
 }
 
-bool ChatResponse::parse_top_logprobs(const json_value_t* top_logprobs_val,
+bool ChatResponse::parse_top_logprobs(const json_value_t *top_logprobs_val,
 									  std::vector<TokenLogprob>& top_logprobs)
 {
 	if (!top_logprobs_val ||

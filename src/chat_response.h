@@ -9,13 +9,6 @@
 
 namespace wfai {
 
-/*
-struct TokenDetails
-{
-	int cached_tokens = 0;
-};
-*/
-
 struct Usage
 {
 	int completion_tokens;			// 模型 completion 产生的 token 数
@@ -23,9 +16,13 @@ struct Usage
 	int prompt_cache_hit_tokens;	// 用户 prompt 中，命中上下文缓存的 token 数
 	int prompt_cache_miss_tokens;   // 用户 prompt 中，未命中上下文缓存的 token 数
 	int total_tokens;				// 该请求中，所有 token 的数量（prompt + completion）
-	int reasoning_tokens;			// completion_tokens_details
-//	TokenDetails prompt_tokens_details;  // prompt tokens 的详细信息
-//	TokenDetails completion_tokens_details; // completion tokens 的详细信息
+	int reasoning_tokens;
+
+	struct TokenDetails
+	{
+		int cached_tokens;
+		TokenDetails() : cached_tokens(0) { }
+	} prompt_tokens_details;		// prompt tokens 的详细信息
 
 	Usage() :
 		completion_tokens(0),
@@ -40,10 +37,9 @@ struct Usage
 		prompt_tokens = move.prompt_tokens;
 		completion_tokens = move.completion_tokens;
 		total_tokens = move.total_tokens;
-//		prompt_tokens_details = std::move(move.prompt_tokens_details);
-//		completion_tokens_details = std::move(move.completion_tokens_details);
 		prompt_cache_hit_tokens = move.prompt_cache_hit_tokens;
 		prompt_cache_miss_tokens = move.prompt_cache_miss_tokens;
+		prompt_tokens_details = move.prompt_tokens_details;
 	}
 
 	Usage& operator=(Usage&& move)
@@ -53,13 +49,12 @@ struct Usage
 			prompt_tokens = move.prompt_tokens;
 			completion_tokens = move.completion_tokens;
 			total_tokens = move.total_tokens;
-//			prompt_tokens_details = std::move(move.prompt_tokens_details);
-//			completion_tokens_details = std::move(move.completion_tokens_details);
 			prompt_cache_hit_tokens = move.prompt_cache_hit_tokens;
 			prompt_cache_miss_tokens = move.prompt_cache_miss_tokens;
+			prompt_tokens_details = move.prompt_tokens_details;
 		}
 		return *this;
-	}	
+	}
 };
 
 struct ToolCall
@@ -156,11 +151,11 @@ public:
 private:
 	bool parse_choice(const json_value_t *choice);
 	bool parse_usage(const json_value_t *usage_val);
-	bool parse_logprobs(const json_object_t* logprobs_obj,
+	bool parse_logprobs(const json_object_t *logprobs_obj,
 						Logprobs& logprobs);
-	bool parse_token_logprob(const json_value_t* token_val,
+	bool parse_token_logprob(const json_value_t *token_val,
 							 TokenLogprob& token_info);
-	bool parse_top_logprobs(const json_value_t* top_logprobs_val,
+	bool parse_top_logprobs(const json_value_t *top_logprobs_val,
 							std::vector<TokenLogprob>& top_logprobs);
 
 	virtual bool parse_message(const json_object_t *object, Choice& choice) = 0;

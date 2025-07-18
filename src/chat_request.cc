@@ -17,7 +17,8 @@ ChatCompletionRequest::ChatCompletionRequest() :
 	temperature(1.0),
 	top_p(1.0),
 	tool_choice("none"),
-	logprobs(false)
+	logprobs(false),
+	top_logprobs(0)
 {
 }
 
@@ -132,7 +133,7 @@ std::string ChatCompletionRequest::to_json() const
 	if (logprobs)
 		json += ",\"logprobs\":true";
 	if (top_logprobs)
-		json += ",\"top_logprobs\":" + std::to_string(*top_logprobs);
+		json += ",\"top_logprobs\":" + std::to_string(top_logprobs);
 
 	json += "}";
 
