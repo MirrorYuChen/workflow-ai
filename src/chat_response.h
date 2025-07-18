@@ -1,6 +1,7 @@
 #ifndef CHAT_RESPONSE_H
 #define CHAT_RESPONSE_H
 
+#include <<stdint.h>>
 #include <string>
 #include <vector>
 #include <cstring>

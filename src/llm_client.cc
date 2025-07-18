@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include "workflow/HttpMessage.h"
 #include "workflow/HttpUtil.h"
 #include "workflow/WFTaskFactory.h"
