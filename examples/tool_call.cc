@@ -13,6 +13,101 @@ using namespace wfai;
 
 volatile bool stop_flag;
 WFFacilities::WaitGroup wait_group(1);
+FunctionManager func_mgr;
+
+// 模拟本地查询天气的功能，比如：{"location":"深圳","unit":"celsius"}
+FunctionResult get_current_weather(const std::string& arguments)
+{
+	fprintf(stderr, "function calling...get_current_weathe()\n");
+	fprintf(stderr, "parameters: %s\n", arguments.c_str());
+
+	std::map<std::string, double> fake_weather_map {
+		{"北京", 30},
+		{"深圳", 28},
+		{"上海", 25}
+	};
+
+	FunctionResult result;
+	result.name = "get_current_time";
+	result.success = false;
+
+	// parse json
+	char *json_buf = (char *)malloc(arguments.length() + 1);
+	if (!json_buf)
+	{
+		result.error_message = "malloc failed";
+		return result;
+	}
+
+	memcpy(json_buf, arguments.data(), arguments.length());
+	json_buf[arguments.length()] = '\0';
+	json_value_t *root = json_value_parse(json_buf);
+	free(json_buf);
+
+	if (!root || json_value_type(root) != JSON_VALUE_OBJECT)
+	{
+		result.error_message = "parse json in response failed";
+		return result;
+	}
+
+	const json_object_t *root_obj = json_value_object(root);
+	const json_value_t *location_val = json_object_find("location", root_obj);
+	if (!location_val || json_value_type(location_val) != JSON_VALUE_STRING)
+	{
+		result.error_message = "missing required parameter : location";
+		return result;
+	}
+
+	// check weather
+	result.success = true;
+
+	std::string location = json_value_string(location_val);
+	if (fake_weather_map.find(location) == fake_weather_map.end())
+	{
+		result.result = "cannot find the weather of " + location;
+		return result;
+	}
+
+	double temperature = fake_weather_map[location];
+
+	const json_value_t *unit_val = json_object_find("unit", root_obj);
+	if (unit_val && json_value_type(unit_val) == JSON_VALUE_STRING)
+	{
+		std::string unit = json_value_string(unit_val);
+		if (unit == "fahrenheit")
+			temperature = temperature * 1.80 + 32.0;
+	}
+
+	result.result = "The temperature of " + location + " is " +
+					std::to_string(temperature);
+	return result;
+}
+
+void register_local_function()
+{
+	FunctionDefinition weather_func = {
+		.name = "get_weather",
+		.description = "获取指定地点的当前天气信息",
+	};
+
+	ParameterProperty location_prop = {
+		.type = "string",
+		.description = "城市或地区名称，例如：'北京市'、'New York'",
+	};
+
+	ParameterProperty unit_prop = {
+		.type = "string",
+		.description = "温度单位，默认使用摄氏度",
+		.enum_values = {"celsius", "fahrenheit"},
+		.default_value = "celsius",
+	};
+
+	weather_func.add_parameter("location", location_prop, true);
+	weather_func.add_parameter("unit", unit_prop, false);
+
+	func_mgr.register_function(weather_func, get_current_weather);
+	fprintf(stderr, "register weather function successfully.\n");
+}
 
 void callback(WFHttpChunkedTask *task,
 			  ChatCompletionRequest *request,
@@ -106,45 +201,16 @@ int main(int argc, char *argv[])
 	stop_flag = false;
 
 	LLMClient client(argv[1]);
+	client.set_function_manager(&func_mgr);
+	register_local_function();
 
 	wfai::ChatCompletionRequest request;
 	request.model = "deepseek-chat";
-	request.stream = true;
+//	request.stream = true;
 	request.messages.push_back({"system", "You are a helpful assistant"});
 	request.messages.push_back({"user", "深圳现在的天气怎么样？"});
 
-	// 创建天气工具
-	wfai::Tool weather_tool;
-	weather_tool.type = "function";
-	weather_tool.function.name = "get_current_weather";
-	weather_tool.function.description = "获取指定地点的当前天气信息";
-
-	// 设置参数模式
-	weather_tool.function.parameters.type = "object";
-
-	// 添加位置参数属性
-	wfai::ParameterProperty location_prop;
-	location_prop.type = "string";
-	location_prop.description = "城市或地区名称，例如：'北京市'、'New York'";
-	weather_tool.function.parameters.properties["location"] = location_prop;
-
-	// 添加单位参数属性
-	wfai::ParameterProperty unit_prop;
-	unit_prop.type = "string";
-	unit_prop.description = "温度单位，默认使用摄氏度";
-	unit_prop.enum_values = {"celsius", "fahrenheit"};
-	unit_prop.default_value = "celsius";
-	weather_tool.function.parameters.properties["unit"] = unit_prop;
-
-	// 设置必需参数
-	weather_tool.function.parameters.required = {"location"};
-
-	request.tools.push_back(weather_tool);
-	request.tool_choice = "auto";
-
-	fprintf(stderr, "Sending request with tool definition...\n");
-
-	auto *task = client.create_chat_task(request, extract, callback);
+	auto *task = client.create_chat_with_tools(request, extract, callback);
 
 	task->start();
 	wait_group.wait();

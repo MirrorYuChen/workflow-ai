@@ -18,13 +18,13 @@ bool FunctionManager::register_function(const FunctionDefinition& definition,
 std::vector<Tool> FunctionManager::get_functions() const
 {
 	std::vector<Tool> tools;
-	
+
 	for (const auto& func : this->functions)
 	{
 		Tool tool;
 		tool.type = "function";
 		tool.function = func.second;
-		tools.push_back(tool);
+		tools.push_back(std::move(tool));
 	}
 
 	return tools;
