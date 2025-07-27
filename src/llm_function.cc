@@ -4,45 +4,26 @@
 
 namespace wfai {
 
-void FunctionManager::register_function(const FunctionDefinition& definition,
+bool FunctionManager::register_function(const FunctionDefinition& definition,
 										FunctionHandler handler)
 {
-	this->functions[definition.name] = definition;
-	this->handlers[definition.name] = handler;
+	if (this->functions.find(definition.name) != this->functions.end())
+		return false;
+
+	this->functions.emplace(definition.name, definition);
+	this->handlers.emplace(definition.name, std::move(handler));
+	return true;
 }
 
 std::vector<Tool> FunctionManager::get_functions() const
 {
 	std::vector<Tool> tools;
 	
-	for (const auto& func : functions)
+	for (const auto& func : this->functions)
 	{
-		const FunctionDefinition& func_def = func.second;
 		Tool tool;
 		tool.type = "function";
-		tool.function.name = func_def.name;
-		tool.function.description = func_def.description;
-		tool.function.parameters.type = "object";
-
-		for (const auto& pair : func_def.parameters)
-		{
-			const std::string& param_name = pair.first;
-			const FunctionParameter& param = pair.second;
-
-			Property prop;
-			prop.type = param.type;
-			prop.description = param.description;
-
-			if (!param.enum_values.empty())
-				prop.enum_values = param.enum_values;
-
-			if (!param.default_value.empty())
-				prop.default_value = param.default_value;
-
-			tool.function.parameters.properties[param_name] = prop;
-		}
-
-		tool.function.parameters.required = func_def.required_parameters;
+		tool.function = func.second;
 		tools.push_back(tool);
 	}
 
@@ -102,9 +83,12 @@ FunctionBuilder& FunctionBuilder::add_string_parameter(const std::string& name,
 													   const std::string& desc,
 													   bool required)
 {
-	this->definition.parameters[name] = FunctionParameter("string", desc);
-	if (required)
-		this->definition.required_parameters.push_back(name);
+	ParameterProperty property = {
+		.type = "string",
+		.description = desc,
+	};
+
+	this->definition.add_parameter(name, std::move(property), required);
 	return *this;
 }
 
@@ -112,9 +96,12 @@ FunctionBuilder& FunctionBuilder::add_number_parameter(const std::string& name,
 													   const std::string& desc,
 													   bool required)
 {
-	this->definition.parameters[name] = FunctionParameter("number", desc);
-	if (required)
-		this->definition.required_parameters.push_back(name);
+	ParameterProperty property = {
+		.type = "number",
+		.description = desc,
+	};
+
+	this->definition.add_parameter(name, std::move(property), required);
 	return *this;
 }
 
@@ -122,9 +109,12 @@ FunctionBuilder& FunctionBuilder::add_boolean_parameter(const std::string& name,
 														const std::string& desc,
 														bool required)
 {
-	this->definition.parameters[name] = FunctionParameter("boolean", desc);
-	if (required)
-		this->definition.required_parameters.push_back(name);
+	ParameterProperty property = {
+		.type = "boolean",
+		.description = desc,
+	};
+
+	this->definition.add_parameter(name, std::move(property), required);
 	return *this;
 }
 
@@ -133,11 +123,13 @@ FunctionBuilder& FunctionBuilder::add_enum_parameter(const std::string& name,
 													 const std::vector<std::string>& values,
 													 bool required)
 {
-	FunctionParameter param("string", desc);
-	param.enum_values = values;
-	this->definition.parameters[name] = param;
-	if (required)
-		this->definition.required_parameters.push_back(name);
+	ParameterProperty property;
+	property.type = "string";  // 枚举在JSON Schema中通常定义为string类型
+	property.description = desc;
+	property.enum_values = values;  // 存储有效枚举值列表
+
+	this->definition.add_parameter(name, std::move(property), required);
+
 	return *this;
 }
 

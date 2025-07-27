@@ -258,8 +258,9 @@ void LLMClient::set_function_manager(FunctionManager *manager)
 	this->function_manager = manager;
 }
 
-void LLMClient::add_function(const FunctionDefinition& function)
+bool LLMClient::register_function(const FunctionDefinition& def,
+								  FunctionHandler handler)
 {
-	this->functions.push_back(function);
+	return this->function_manager->register_function(def, std::move(handler));
 }
 

@@ -10,6 +10,7 @@ cc_library(
 		"src/llm_function.cc",
 	],
 	hdrs = [
+		"src/llm_util.h",
 		"src/chat_request.h",
 		"src/chat_response.h",
 		"src/llm_client.h",

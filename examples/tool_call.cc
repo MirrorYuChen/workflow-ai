@@ -123,13 +123,13 @@ int main(int argc, char *argv[])
 	weather_tool.function.parameters.type = "object";
 
 	// 添加位置参数属性
-	wfai::Property location_prop;
+	wfai::ParameterProperty location_prop;
 	location_prop.type = "string";
 	location_prop.description = "城市或地区名称，例如：'北京市'、'New York'";
 	weather_tool.function.parameters.properties["location"] = location_prop;
 
 	// 添加单位参数属性
-	wfai::Property unit_prop;
+	wfai::ParameterProperty unit_prop;
 	unit_prop.type = "string";
 	unit_prop.description = "温度单位，默认使用摄氏度";
 	unit_prop.enum_values = {"celsius", "fahrenheit"};

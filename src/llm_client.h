@@ -5,6 +5,7 @@
 #include <string.h>
 #include <string>
 #include "workflow/WFHttpChunkedClient.h"
+#include "llm_util.h"
 #include "chat_response.h"
 #include "chat_request.h"
 #include "llm_function.h"
@@ -41,7 +42,8 @@ public:
 	// Will add functions for all tasks from this client when tool_choice != 'none'
 	void set_function_manager(FunctionManager *manager);
 
-	void add_function(const FunctionDefinition& function);
+	bool register_function(const FunctionDefinition& function,
+						   FunctionHandler handler);
 
 private:
 	WFHttpChunkedTask *create(ChatCompletionRequest *req,
@@ -68,7 +70,6 @@ private:
 	int streaming_tpft;
 	int redirect_max;
 	FunctionManager *function_manager;
-	std::vector<FunctionDefinition> functions;
 };
 
 } // namespace llm_client

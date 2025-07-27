@@ -6,55 +6,9 @@
 #include <cstring>
 #include <map>
 #include "workflow/json_parser.h"
+#include "llm_util.h"
 
 namespace wfai {
-
-struct Property
-{
-	std::string type;
-	std::string description;
-	std::vector<std::string> enum_values;	// 可选，如果为空则表示没有
-	std::string default_value;				// 可选，空表示没有，可能不太好
-};
-
-struct Tool
-{
-	std::string type = "function";
-
-	struct Function
-	{
-		std::string name;
-		std::string description;
-
-		struct ParametersSchema
-		{
-			std::string type = "object";
-			std::map<std::string, Property> properties;
-			std::vector<std::string> required;
-		};
-
-		ParametersSchema parameters;
-	};
-
-	Function function;
-
-	Tool() = default;
-};
-
-struct Message
-{
-	// for system/user/assistant/tool
-	std::string role;
-	std::string content;
-	std::string name; // optional
-
-	// for assistant
-	bool prefix;
-	std::string reasoning_context;
-
-	// for tool
-	int tool_call_id;
-};
 
 class ChatCompletionRequest
 {

@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include "chat_request.h"
+#include "llm_util.h"
 
 namespace wfai {
 
