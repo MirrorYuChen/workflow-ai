@@ -7,6 +7,7 @@
 #include <cstring>
 #include <functional>
 #include "workflow/json_parser.h"
+#include "llm_util.h"
 
 namespace wfai {
 
@@ -56,18 +57,6 @@ struct Usage
 		}
 		return *this;
 	}
-};
-
-struct ToolCall
-{
-	std::string id;				// tool 调用的 ID
-	std::string type;			// tool 的类型，目前仅支持 function
-	int index;
-	struct
-	{
-		std::string name;		// 模型调用的 function 名
-		std::string arguments;	// 要调用的 function 的参数，格式为 JSON
-	} function;
 };
 
 struct TokenLogprob

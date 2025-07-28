@@ -39,23 +39,24 @@ std::vector<FunctionDefinition> FunctionManager::get_function_definitions() cons
 	return definitions;
 }
 
-FunctionResult FunctionManager::execute_function(const FunctionCall& call) const
+FunctionResult FunctionManager::execute_function(const std::string& name,
+												 const std::string& arguments) const
 {
 	FunctionResult result;
-	result.name = call.name;
+	result.name = name;
 
-	auto it = this->handlers.find(call.name);
+	auto it = this->handlers.find(name);
 	if (it == this->handlers.end())
 	{
 		result.success = false;
-		result.error_message = "Function not found: " + call.name;
+		result.error_message = "Function not found: " + name;
 		return result;
 	}
 
-	result = it->second(call.arguments); // TODO: change into WFGoTask
+	result = it->second(arguments); // TODO: change into WFGoTask
 	if (!result.success)
 	{
-		result.error_message = "Function " + call.name + " execution error.";
+		result.error_message = "Function " + name + " execution error.";
 		// + std::string(result.err_msg)
 	}
 	return result;

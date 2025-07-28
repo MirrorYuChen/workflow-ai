@@ -77,13 +77,14 @@ WFHttpChunkedTask *LLMClient::create_chat_task(ChatCompletionRequest request,
 		resp,
 		std::move(extract)
 	);
-	
+
 	auto callback_handler = std::bind(
 		&LLMClient::callback,
 		this,
 		std::placeholders::_1,
 		req,
 		resp,
+		nullptr,
 		std::move(callback)
 	);
 
@@ -118,16 +119,18 @@ WFHttpChunkedTask *LLMClient::create_chat_with_tools(ChatCompletionRequest reque
 		std::placeholders::_1,
 		req,
 		resp,
-		std::move(extract)
+		extract
+//		std::move(extract)
 	);
 
 	auto callback_handler = std::bind(
-//		&LLMClient::callback_with_tools,
-		&LLMClient::callback,
+		&LLMClient::callback_with_tools,
+//		&LLMClient::callback,
 		this,
 		std::placeholders::_1,
 		req,
 		resp,
+		std::move(extract), // for multi round session
 		std::move(callback)
 	);
 
@@ -172,6 +175,7 @@ WFHttpChunkedTask *LLMClient::create(ChatCompletionRequest *req,
 void LLMClient::callback(WFHttpChunkedTask *task,
 						 ChatCompletionRequest *req,
 						 ChatCompletionResponse *resp,
+						 llm_extract_t extract,
 						 llm_callback_t callback)
 {
 	if (!req->stream)
@@ -185,6 +189,89 @@ void LLMClient::callback(WFHttpChunkedTask *task,
 	delete resp;
 }
 
+void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
+									ChatCompletionRequest *req,
+									ChatCompletionResponse *resp,
+									llm_extract_t extract,
+									llm_callback_t callback)
+{
+	if (!req->stream)
+	{
+		if(!resp->parse_json())
+		{
+			if (callback)
+				callback(task, req, resp);
+
+			delete req;
+			delete resp;
+			return;
+		}
+	}
+
+	// parse resp
+	if (task->get_state() != WFT_STATE_SUCCESS ||
+		resp->choices.empty() ||
+		resp->choices[0].message.tool_calls.empty())
+		return;
+
+	// append the llm response
+	Message resp_msg;
+	resp_msg.role = "assistant";
+
+	for (const auto &tc : resp->choices[0].message.tool_calls)
+		resp_msg.tool_calls.push_back(tc);
+
+	req->messages.push_back(resp_msg);
+	req->tool_choice = "none";
+	req->tools.clear();
+
+	// calculate
+	Message msg;
+	for (const auto &tc : resp->choices[0].message.tool_calls)
+	{
+		if (tc.type != "function") // must be function so far
+			continue;
+
+		// TODO: use parallel task if more than one function call
+		FunctionResult res = this->function_manager->execute_function(tc.function.name,
+																	  tc.function.arguments);
+
+		// append the function call result
+		// example : {"role": "tool", "tool_call_id": tool.id, "content": "24℃"}
+		msg.role = "tool";
+		msg.tool_call_id = tc.id;
+		msg.content = res.success ? res.result : res.error_message;
+		req->messages.push_back(msg);
+	}
+
+	delete resp;
+	resp = new ChatCompletionResponse();
+
+	auto extract_handler = std::bind(
+		&LLMClient::extract,
+		this,
+		std::placeholders::_1,
+		req,
+		resp,
+		std::move(extract)
+	);
+	
+	auto callback_handler = std::bind(
+		&LLMClient::callback,
+		this,
+		std::placeholders::_1,
+		req,
+		resp,
+		nullptr,
+		std::move(callback)
+	);
+
+	auto *next = this->create(req, std::move(extract_handler),
+							  std::move(callback_handler));
+	series_of(task)->push_back(next);
+	return;
+}
+
 void LLMClient::extract(WFHttpChunkedTask *task,
 						ChatCompletionRequest *req,
 						ChatCompletionResponse *resp,
@@ -196,7 +283,7 @@ void LLMClient::extract(WFHttpChunkedTask *task,
 	
 	if (!msg_chunk->get_chunk_data(&msg, &size))
 	{
-		// TODO : mark error: invalid chunk data
+		// TODO : mark error : invalid chunk data
 		return;
 	}
 

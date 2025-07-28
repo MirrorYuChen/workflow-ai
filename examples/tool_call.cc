@@ -18,7 +18,7 @@ FunctionManager func_mgr;
 // 模拟本地查询天气的功能，比如：{"location":"深圳","unit":"celsius"}
 FunctionResult get_current_weather(const std::string& arguments)
 {
-	fprintf(stderr, "function calling...get_current_weathe()\n");
+	fprintf(stderr, "function calling...get_current_weather()\n");
 	fprintf(stderr, "parameters: %s\n", arguments.c_str());
 
 	std::map<std::string, double> fake_weather_map {
@@ -78,8 +78,7 @@ FunctionResult get_current_weather(const std::string& arguments)
 			temperature = temperature * 1.80 + 32.0;
 	}
 
-	result.result = "The temperature of " + location + " is " +
-					std::to_string(temperature);
+	result.result = std::to_string(temperature);
 	return result;
 }
 

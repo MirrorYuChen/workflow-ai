@@ -58,7 +58,14 @@ private:
 	void callback(WFHttpChunkedTask *task,
 				  ChatCompletionRequest *req,
 				  ChatCompletionResponse *resp,
+				  llm_extract_t extract, // useless here
 				  llm_callback_t callback);
+
+	void callback_with_tools(WFHttpChunkedTask *task,
+							 ChatCompletionRequest *req,
+							 ChatCompletionResponse *resp,
+							 llm_extract_t extract,
+							 llm_callback_t callback);
 
 private:
 	WFHttpChunkedClient client;

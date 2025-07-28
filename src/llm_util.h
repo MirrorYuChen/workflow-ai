@@ -9,6 +9,31 @@
 
 namespace wfai {
 
+///// for request and response /////
+
+struct ToolCall
+{
+	std::string id;				// tool 调用的 ID
+	std::string type;			// tool 的类型，目前仅支持 function
+	int index;
+	struct
+	{
+		std::string name;		// 模型调用的 function 名
+		std::string arguments;	// 要调用的 function 的参数，格式为 JSON
+	} function;
+
+	ToolCall() : index(0) {}
+
+	ToolCall(const std::string& tc_id,
+			 const std::string& func_name,
+			 const std::string& args) :
+		id(tc_id), type("function"), index(0)
+	{
+		function.name = func_name;
+		function.arguments = args;
+	}
+};
+
 ///// for request /////
 
 struct Message
@@ -21,9 +46,20 @@ struct Message
 	// for assistant
 	bool prefix;
 	std::string reasoning_context;
+	std::vector<ToolCall> tool_calls; // for assistant messages with tool calls
 
-	// for tool
-	int tool_call_id;
+	// for tool, corresponde to struct ToolCall.id
+	std::string tool_call_id;
+
+	Message() : prefix(false) {}
+
+	// Constructor for simple messages
+	Message(const std::string& r, const std::string& c) :
+		role(r), content(c), prefix(false) {}
+
+	// Constructor for tool result messages
+	Message(const std::string& r, const std::string& c, const std::string& tcid) :
+		role(r), content(c),  prefix(false), tool_call_id(tcid) {}
 };
 
 struct ParameterProperty

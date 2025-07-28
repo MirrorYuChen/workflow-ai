@@ -85,12 +85,52 @@ std::string ChatCompletionRequest::to_json() const
 	json += "\"messages\":[";
 	for (size_t i = 0; i < messages.size(); i++) 
 	{
-		std::string escaped_content = escape_string(messages[i].content);
+		const auto& msg = messages[i];
+		std::string escaped_content = escape_string(msg.content);
+
 		json += "{";
-		json += "\"content\":\"" + escaped_content + "\",";
-		json += "\"role\":\"" + messages[i].role + "\"";
-		if (!messages[i].name.empty())
-			json += ",\"name\":\"" + messages[i].name + "\"";
+		json += "\"role\":\"" + msg.role + "\",";
+
+		if (!msg.content.empty() || msg.role == "tool")
+			json += "\"content\":\"" + escaped_content + "\",";
+		else
+			json += "\"content\":null,";
+
+		if (!msg.name.empty())
+			json += ",\"name\":\"" + msg.name + "\",";
+
+		// fill tool_calls in from assistant as response
+		if (msg.role == "assistant" && !msg.tool_calls.empty())
+		{
+			json += "\"tool_calls\":[";
+			for (size_t j = 0; j < msg.tool_calls.size(); j++)
+			{
+				const auto& tc = msg.tool_calls[j];
+				json += "{";
+				json += "\"id\":\"" + tc.id + "\",";
+				json += "\"type\":\"" + tc.type + "\",";
+				json += "\"function\":{";
+				json += "\"name\":\"" + tc.function.name + "\",";
+				json += "\"arguments\":\"" + escape_string(tc.function.arguments) + "\"";
+				json += "}";
+				json += "}";
+				if (j < msg.tool_calls.size() - 1)
+					json += ",";
+			}
+			json += "],";
+		}
+
+		// fill tool_call_id when this message is tool call result
+		if (msg.role == "tool" && !msg.tool_call_id.empty())
+			json += "\"tool_call_id\":\"" + msg.tool_call_id + "\",";
+
+		if (msg.prefix)
+			json += "\"prefix\":true,";
+
+		// remove the last , in json object
+		if (json.back() == ',')
+			json.pop_back();
+
 		json += "}";
 		if (i < messages.size() - 1)
 			json += ",";
@@ -136,7 +176,6 @@ std::string ChatCompletionRequest::to_json() const
 		json += ",\"top_logprobs\":" + std::to_string(top_logprobs);
 
 	json += "}";
-
 	return json;
 }
 

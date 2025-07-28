@@ -10,16 +10,6 @@
 
 namespace wfai {
 
-struct FunctionCall
-{
-	std::string name;
-	std::string arguments; // json
-
-	FunctionCall() = default;
-	FunctionCall(const std::string& n, const std::string& args)
-		: name(n), arguments(args) {}
-};
-
 class FunctionManager
 {
 public:
@@ -27,7 +17,8 @@ public:
 						   FunctionHandler handler);
 	std::vector<Tool> get_functions() const;
 	std::vector<FunctionDefinition> get_function_definitions() const;
-	FunctionResult execute_function(const FunctionCall& call) const;
+	FunctionResult execute_function(const std::string& name,
+									const std::string& arguments) const;
 	bool has_function(const std::string& name) const;
 	void clear_functions();
 
