@@ -16,7 +16,7 @@ WFFacilities::WaitGroup wait_group(1);
 FunctionManager func_mgr;
 
 // 模拟本地查询天气的功能，比如：{"location":"深圳","unit":"celsius"}
-FunctionResult get_current_weather(const std::string& arguments)
+void get_current_weather(const std::string& arguments, FunctionResult *result)
 {
 	fprintf(stderr, "function calling...get_current_weather()\n");
 	fprintf(stderr, "parameters: %s\n", arguments.c_str());
@@ -27,16 +27,15 @@ FunctionResult get_current_weather(const std::string& arguments)
 		{"上海", 25}
 	};
 
-	FunctionResult result;
-	result.name = "get_current_time";
-	result.success = false;
+	result->name = "get_current_time";
+	result->success = false;
 
 	// parse json
 	char *json_buf = (char *)malloc(arguments.length() + 1);
 	if (!json_buf)
 	{
-		result.error_message = "malloc failed";
-		return result;
+		result->error_message = "malloc failed";
+		return;
 	}
 
 	memcpy(json_buf, arguments.data(), arguments.length());
@@ -44,28 +43,37 @@ FunctionResult get_current_weather(const std::string& arguments)
 	json_value_t *root = json_value_parse(json_buf);
 	free(json_buf);
 
-	if (!root || json_value_type(root) != JSON_VALUE_OBJECT)
+	if (!root)
 	{
-		result.error_message = "parse json in response failed";
-		return result;
+		result->error_message = "parse json in response failed";
+		return;
+	}
+
+	if (json_value_type(root) != JSON_VALUE_OBJECT)
+	{
+		result->error_message = "parse json in response failed";
+		json_value_destroy(root);
+		return;
 	}
 
 	const json_object_t *root_obj = json_value_object(root);
 	const json_value_t *location_val = json_object_find("location", root_obj);
 	if (!location_val || json_value_type(location_val) != JSON_VALUE_STRING)
 	{
-		result.error_message = "missing required parameter : location";
-		return result;
+		result->error_message = "missing required parameter : location";
+		json_value_destroy(root);
+		return;
 	}
 
 	// check weather
-	result.success = true;
+	result->success = true;
 
 	std::string location = json_value_string(location_val);
 	if (fake_weather_map.find(location) == fake_weather_map.end())
 	{
-		result.result = "cannot find the weather of " + location;
-		return result;
+		result->result = "cannot find the weather of " + location;
+		json_value_destroy(root);
+		return;
 	}
 
 	double temperature = fake_weather_map[location];
@@ -78,8 +86,9 @@ FunctionResult get_current_weather(const std::string& arguments)
 			temperature = temperature * 1.80 + 32.0;
 	}
 
-	result.result = std::to_string(temperature);
-	return result;
+	result->result = std::to_string(temperature);
+	json_value_destroy(root);
+	return;
 }
 
 void register_local_function()

@@ -5,6 +5,7 @@
 #include <vector>
 #include <cstring>
 #include <map>
+#include <functional>
 #include "workflow/json_parser.h"
 
 namespace wfai {
@@ -139,7 +140,8 @@ struct FunctionResult
 	}
 };
 
-using FunctionHandler = std::function<FunctionResult(const std::string& arguments)>;
+using FunctionHandler =
+	std::function<void(const std::string& arguments, FunctionResult *result)>;
 
 } // namespace wfai
 

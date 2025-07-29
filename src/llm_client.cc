@@ -222,28 +222,54 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 		resp_msg.tool_calls.push_back(tc);
 
 	req->messages.push_back(resp_msg);
+
+	// remove previous tools infomation
 	req->tool_choice = "none";
 	req->tools.clear();
 
 	// calculate
-	Message msg;
-	for (const auto &tc : resp->choices[0].message.tool_calls)
+	if (resp->choices[0].message.tool_calls.size() == 1)
 	{
-		if (tc.type != "function") // must be function so far
-			continue;
+		const auto& tc = resp->choices[0].message.tool_calls[0];
+		// if (tc.type == "function")
+		FunctionResult *res = new FunctionResult();
+		WFGoTask *next = this->function_manager->async_execute_function(
+			tc.function.name,
+			tc.function.arguments,
+			res);
 
-		// TODO: use parallel task if more than one function call
-		FunctionResult res = this->function_manager->execute_function(tc.function.name,
-																	  tc.function.arguments);
+		auto callback_handler = std::bind(
+			&LLMClient::function_call_callback,
+			this,
+			std::placeholders::_1,
+			req,
+			resp,
+			res,
+			tc.id,
+			std::move(extract),
+			std::move(callback)
+		);
 
-		// append the function call result
-		// example : {"role": "tool", "tool_call_id": tool.id, "content": "24℃"}
-		msg.role = "tool";
-		msg.tool_call_id = tc.id;
-		msg.content = res.success ? res.result : res.error_message;
-		req->messages.push_back(msg);
+		next->set_callback(callback_handler);
+		series_of(task)->push_back(next);
 	}
+}
 
+void LLMClient::function_call_callback(WFGoTask *task,
+									   ChatCompletionRequest *req,
+									   ChatCompletionResponse *resp,
+									   FunctionResult *res,
+									   const std::string& tool_call_id,
+									   llm_extract_t extract,
+									   llm_callback_t callback)
+{
+	Message msg;
+	msg.role = "tool";
+	msg.tool_call_id = tool_call_id;
+	msg.content = res->success ? res->result : res->error_message;
+	req->messages.push_back(msg);
+
+	delete res;
 	delete resp;
 	resp = new ChatCompletionResponse();
 
@@ -269,7 +295,6 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 	auto *next = this->create(req, std::move(extract_handler),
 							  std::move(callback_handler));
 	series_of(task)->push_back(next);
-	return;
 }
 
 void LLMClient::extract(WFHttpChunkedTask *task,

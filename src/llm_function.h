@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <functional>
+#include "workflow/WFTask.h"
 #include "workflow/json_parser.h"
 #include "llm_util.h"
 
@@ -17,8 +18,12 @@ public:
 						   FunctionHandler handler);
 	std::vector<Tool> get_functions() const;
 	std::vector<FunctionDefinition> get_function_definitions() const;
-	FunctionResult execute_function(const std::string& name,
-									const std::string& arguments) const;
+	void execute_function(const std::string& name,
+						  const std::string& arguments,
+						  FunctionResult *res) const;
+	WFGoTask *async_execute_function(const std::string& name,
+									 const std::string& arguments,
+									 FunctionResult *res) const;
 	bool has_function(const std::string& name) const;
 	void clear_functions();
 

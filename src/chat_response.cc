@@ -459,7 +459,7 @@ bool ChatCompletionResponse::parse_message(const json_object_t *object,
 	return true;
 }
 
-bool ChatCompletionResponse::append_buffer(const void* data, size_t size)
+bool ChatCompletionResponse::append_buffer(const void *data, size_t size)
 {
 	if (this->buffer.size + size > this->buffer.capacity)
 	{

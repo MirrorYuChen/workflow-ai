@@ -1,5 +1,6 @@
 #include <sstream>
 #include <iostream>
+#include "workflow/WFTaskFactory.h"
 #include "llm_function.h"
 
 namespace wfai {
@@ -39,27 +40,47 @@ std::vector<FunctionDefinition> FunctionManager::get_function_definitions() cons
 	return definitions;
 }
 
-FunctionResult FunctionManager::execute_function(const std::string& name,
-												 const std::string& arguments) const
+void FunctionManager::execute_function(const std::string& name,
+									   const std::string& arguments,
+									   FunctionResult *result) const
 {
-	FunctionResult result;
-	result.name = name;
+	result->name = name;
 
 	auto it = this->handlers.find(name);
 	if (it == this->handlers.end())
 	{
-		result.success = false;
-		result.error_message = "Function not found: " + name;
-		return result;
+		result->success = false;
+		result->error_message = "Function not found: " + name;
+		return;
 	}
 
-	result = it->second(arguments); // TODO: change into WFGoTask
-	if (!result.success)
+	it->second(arguments, result);
+	if (!result->success)
 	{
-		result.error_message = "Function " + name + " execution error.";
-		// + std::string(result.err_msg)
+		result->error_message = "Function " + name + " execution error.";
+		// + std::string(result->err_msg)
 	}
-	return result;
+	return;
+}
+
+WFGoTask *FunctionManager::async_execute_function(const std::string& name,
+												  const std::string& arguments,
+												  FunctionResult *result) const
+{
+	auto it = this->handlers.find(name);
+	if (it == this->handlers.end())
+	{
+		if (result)
+		{
+			result->name = name;
+			result->success = false;
+			result->error_message = "Function not found: " + name;
+		}
+		return nullptr;
+	}
+
+	WFGoTask *task = WFTaskFactory::create_go_task(name, it->second, arguments, result);
+	return task;
 }
 
 bool FunctionManager::has_function(const std::string& name) const
