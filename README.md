@@ -256,7 +256,8 @@ This is one time preparation, too.
 
 ```cpp
 
-int main() {
+int main()
+{
     LLMClient client("your_api_key");
     FunctionManager func_mgr;
     client.set_function_manager(&func_mgr);
