@@ -198,8 +198,9 @@ int main(int argc, char *argv[])
 //	request.stream = true;
 	request.messages.push_back({"system", "You are a helpful assistant"});
 	request.messages.push_back({"user", "深圳现在的天气怎么样？"});
+	request.tool_choice = "auto"; // enable to use tools
 
-	auto *task = client.create_chat_with_tools(request, extract, callback);
+	auto *task = client.create_chat_task(request, extract, callback);
 
 	task->start();
 	wait_group.wait();

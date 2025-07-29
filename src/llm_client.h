@@ -31,10 +31,6 @@ public:
 										llm_extract_t extract,
 										llm_callback_t callback);
 
-	WFHttpChunkedTask *create_chat_with_tools(const ChatCompletionRequest& request,
-											  llm_extract_t extract,
-											  llm_callback_t callback);
-
 public:
 	LLMClient();
 	LLMClient(const std::string& api_key);
@@ -47,6 +43,10 @@ public:
 						   FunctionHandler handler);
 
 private:
+	WFHttpChunkedTask *create_basic_task(const ChatCompletionRequest& request,
+										 llm_extract_t extract,
+										 llm_callback_t callback);
+
 	WFHttpChunkedTask *create(ChatCompletionRequest *req,
 							  extract_t extract,
 							  callback_t callback);

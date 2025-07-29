@@ -94,6 +94,46 @@ WFHttpChunkedTask *LLMClient::create_chat_task(const ChatCompletionRequest& requ
 											   llm_extract_t extract,
 											   llm_callback_t callback)
 {
+	if (!this->function_manager || request.tool_choice == "none")
+	{
+		return this->create_basic_task(request,
+									   std::move(extract),
+									   std::move(callback));
+	}
+
+	ChatCompletionRequest *req = new ChatCompletionRequest(request);
+	ChatCompletionResponse *resp = new ChatCompletionResponse();
+
+	auto tools = this->function_manager->get_functions();
+	for (const auto& tool : tools)
+		req->tools.emplace_back(tool);
+
+	auto extract_handler = std::bind(
+		&LLMClient::extract,
+		this,
+		std::placeholders::_1,
+		req,
+		resp,
+		extract
+	);
+
+	auto callback_handler = std::bind(
+		&LLMClient::callback_with_tools,
+		this,
+		std::placeholders::_1,
+		req,
+		resp,
+		std::move(extract), // for multi round session
+		std::move(callback)
+	);
+
+	return this->create(req, std::move(extract_handler), std::move(callback_handler));
+}
+
+WFHttpChunkedTask *LLMClient::create_basic_task(const ChatCompletionRequest& request,
+												llm_extract_t extract,
+												llm_callback_t callback)
+{
 	ChatCompletionRequest *req = new ChatCompletionRequest(request);
 	ChatCompletionResponse *resp = new ChatCompletionResponse();
 
@@ -118,50 +158,6 @@ WFHttpChunkedTask *LLMClient::create_chat_task(const ChatCompletionRequest& requ
 
 	return this->create(req, std::move(extract_handler), std::move(callback_handler));
 }
-
-WFHttpChunkedTask *LLMClient::create_chat_with_tools(const ChatCompletionRequest& request,
-													 llm_extract_t extract,
-													 llm_callback_t callback)
-{
-	if (!this->function_manager)
-	{
-		return this->create_chat_task(request,
-									  std::move(extract),
-									  std::move(callback));
-	}
-
-	ChatCompletionRequest *req = new ChatCompletionRequest(request);
-	ChatCompletionResponse *resp = new ChatCompletionResponse();
-
-	auto tools = this->function_manager->get_functions();
-	for (const auto& tool : tools)
-		req->tools.emplace_back(tool);
-
-	if (req->tool_choice == "none")
-		req->tool_choice = "auto";
-
-	auto extract_handler = std::bind(
-		&LLMClient::extract,
-		this,
-		std::placeholders::_1,
-		req,
-		resp,
-		extract
-	);
-
-	auto callback_handler = std::bind(
-		&LLMClient::callback_with_tools,
-		this,
-		std::placeholders::_1,
-		req,
-		resp,
-		std::move(extract), // for multi round session
-		std::move(callback)
-	);
-
-	return this->create(req, std::move(extract_handler), std::move(callback_handler));
-}
-
 
 WFHttpChunkedTask *LLMClient::create(ChatCompletionRequest *req,
 									 extract_t extract_handler,

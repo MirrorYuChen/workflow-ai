@@ -227,7 +227,9 @@ int main(int argc, char *argv[])
 	// 提出一个需要并行调用多个工具的问题
 	request.messages.push_back({"user", "请告诉我北京和深圳的天气情况，还有现在的时间"});
 
-	auto *task = client.create_chat_with_tools(request, extract, callback);
+	request.tool_choice = "auto"; // enable to use tools
+
+	auto *task = client.create_chat_task(request, extract, callback);
 
 	fprintf(stderr, "Starting parallel tool calls test...\n");
 	task->start();

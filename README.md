@@ -1,8 +1,8 @@
 # Workflow AI - C++ Networking and Computing Task for LLMs
 
-As modern LLM applications increasingly require not just API requests but also complex tool calls and agent orchestration, efficiently organizing these mixed network and compute tasks presents a critical challenge for C++ programs. 
+As modern LLM applications increasingly require not just API requests but also complex tool calls and agent orchestration, efficiently organizing network and compute tasks presents a critical challenge for C++ programs. 
 
-**Workflow AI** addresses this challenge by providing a high-performance C++ library for interacting with Large Language Models (LLMs) built on [C++ Workflow](https://github.com/sogou/workflow) framework, which support 💬 `basic chatbot` , 🔧`function calling` and ⚡`parallel execution`.
+**Workflow AI** provides a high-performance C++ library for interacting with Large Language Models (LLMs) built on [C++ Workflow](https://github.com/sogou/workflow) and supports 💬 `basic chatbot` , 🔧`function calling` and ⚡`parallel execution`.
 
 By abstracting the complexity of mixed I/O and compute workflows, we make LLM integration easy and efficient for all C++ applications.
 
@@ -42,25 +42,29 @@ This is the very beginning of a multi-layer LLM interaction framework. Here's th
    - [ ] offload local disk storage
    - [ ] offload distributed storage
 
-### 2.2 Multi-modal Support
+### 2.2 API Modes
+- [x] Asynchronous Task API (Done)
+- [ ] Synchronous API (In progress)
+
+### 2.3 Multi-modal Support
 - [x] Text-to-text (Done)
 - [ ] Text-to-image (In progress)
 - [ ] Text-to-speech (Planned)
 - [ ] Embeddings (Planned)
 
-### 2.3 Model Providers
+### 2.4 Model Providers
 - [x] DeepSeek API (Done)
 - [x] OpenAI-compatible APIs (Done)
 - [ ] Claude API (In progress)
 - [ ] Local model integration (Planned)
 
-### 2.4 Network Modes
+### 2.5 Network Modes
 - [x] Client mode (Done)
 - [x] Proxy mode (Partial)
 - [ ] Server mode (In progress)
    - [ ] Session state management
 
-### 2.5 Task Specialization
+### 2.6 Task Specialization
 - [ ] Preset task templates (translation/summary/code)
 - [ ] Prompt engineering
    - [ ] Few-shot integration
@@ -70,7 +74,7 @@ This is the very beginning of a multi-layer LLM interaction framework. Here's th
    - [ ] Math (calculate)
    - [ ] DB queries (VectorDB/Redis)
 
-### 2.6 Output Structures
+### 2.7 Output Structures
 - [x] JSON (Done)
 - [ ] Protobuf (In progress)
 - [ ] Custom formats (Planned)
@@ -83,8 +87,8 @@ This is the very beginning of a multi-layer LLM interaction framework. Here's th
 - Required C++11 or later
 
 ```bash
-git clone https://github.com/holmes1412/workflow_ai.git
-cd workflow_ai
+git clone https://github.com/holmes1412/workflow-ai.git
+cd workflow-ai
 ```
 
 ### 3.2 Build with Bazel (Recommended)
@@ -156,8 +160,6 @@ int main(int argc, char *argv[])
 }
 ```
 
-🤖
-
 **Step-2** : Implement `extract()` for streaming.
 
  If **request.stream = false**, you may ignore this.  `extract()` will be called every time we get a chunk data from LLMs.  
@@ -176,8 +178,6 @@ void extract(WFHttpChunkedTask *task, ChatCompletionRequest *request, ChatComple
         fprintf(stderr, "content=%s\n", chunk->choices[0].delta.content.c_str());
 }
 ```
-
-🤖
 
 **Step-3** : Implement `callback()`. 
 
@@ -250,8 +250,6 @@ void get_current_weather(const std::string& arguments, FunctionResult *result)
 }
 ```
 
-🤖
-
 **Step-2** : Register the function into `function_manager` and add function_manager into client. 
 
 This is one time preparation, too.
@@ -272,8 +270,6 @@ int main() {
 }
 ```
 
-🤖
-
 **Step-3** : Start a `task` with tools.   
 
 As long as we have function in manager and set `request.tool_choice`, LLMs will tell us how to use corresponding tools and this library will help us execute the tools automatically. Then the library will give the response to LLMs and let it summarise by the function results.
@@ -291,8 +287,6 @@ As long as we have function in manager and set `request.tool_choice`, LLMs will 
 }
 ```
 
-🤖
-
 **Step-4**  : Implement `extract()` and `callback()`.
 
 ```cpp
@@ -307,7 +301,7 @@ The library automatically detects when multiple tool calls are returned by the L
 
 ```cpp
 // When LLM returns multiple tool calls, they execute in parallel
-request.messages.push_back({"user", "Tell me the weather in Beijing and Shanghai, and the current time"});
+request.messages.push_back({"user", "Tell me the weather in Beijing and Shenzhen, and the current time"});
 ```
 
 This will execute weather queries for both cities and time query simultaneously, significantly improving response time.
@@ -348,7 +342,7 @@ For more examples, check the [examples/](./examples) directory.  Detailed docume
 Have questions, suggestions, or want to contribute? Feel free to reach out!
 
 ✉️ **Email**: [liyingxin1412@gmail.com](mailto:liyingxin1412@gmail.com)  
-🐱 **GitHub**: [https://github.com/holmes1412](https://github.com/holmes1412)  
+🧸  **GitHub**: [https://github.com/holmes1412](https://github.com/holmes1412)  
 
 We welcome all feedback and contributions to make Workflow AI even better!
 
