@@ -18,15 +18,9 @@ static constexpr uint32_t default_no_streaming_tpft = 100 * 1000; // ms
 static constexpr int default_redirect_max = 3;
 
 // Context for parallel tool calls execution
-struct ToolCallsContext
+class ToolCallsContext
 {
-	ChatCompletionRequest *req;
-	ChatCompletionResponse *resp;
-	std::vector<FunctionResult *> results;
-	std::vector<std::string> tool_call_ids;
-	LLMClient::llm_extract_t extract;
-	LLMClient::llm_callback_t callback;
-
+public:
 	ToolCallsContext(ChatCompletionRequest *req,
 					 ChatCompletionResponse *resp,
 					 LLMClient::llm_extract_t extract,
@@ -42,6 +36,14 @@ struct ToolCallsContext
 		for (auto *result : results)
 			delete result;
 	}
+
+public:
+	ChatCompletionRequest *req;
+	ChatCompletionResponse *resp;
+	std::vector<FunctionResult *> results;
+	std::vector<std::string> tool_call_ids;
+	LLMClient::llm_extract_t extract;
+	LLMClient::llm_callback_t callback;
 };
 
 // for streaming

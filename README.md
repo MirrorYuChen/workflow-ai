@@ -27,6 +27,7 @@ This is the very beginning of a multi-layer LLM interaction framework. Here's th
    - [x] Task → Model → Callback
    - [x] Task → Model → Function → Model → Callback
    - [x] Streaming response (SSE)
+   - [ ] Streamable protocol
    - [ ] Model KVCache loading
    - [ ] Prefill/decode optimization
 
@@ -69,10 +70,6 @@ This is the very beginning of a multi-layer LLM interaction framework. Here's th
 - [ ] Prompt engineering
    - [ ] Few-shot integration
    - [ ] Dynamic prompt building
-- [ ] Tool registry
-   - [ ] Weather (get_weather)
-   - [ ] Math (calculate)
-   - [ ] DB queries (VectorDB/Redis)
 
 ### 2.7 Output Structures
 - [x] JSON (Done)

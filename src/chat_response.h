@@ -25,38 +25,6 @@ struct Usage
 		int cached_tokens;
 		TokenDetails() : cached_tokens(0) { }
 	} prompt_tokens_details;		// prompt tokens 的详细信息
-
-	Usage() :
-		completion_tokens(0),
-		prompt_tokens(0),
-		prompt_cache_hit_tokens(0),
-		prompt_cache_miss_tokens(0),
-		total_tokens(0),
-		reasoning_tokens(0) { }
-
-	Usage(Usage&& move)
-	{
-		prompt_tokens = move.prompt_tokens;
-		completion_tokens = move.completion_tokens;
-		total_tokens = move.total_tokens;
-		prompt_cache_hit_tokens = move.prompt_cache_hit_tokens;
-		prompt_cache_miss_tokens = move.prompt_cache_miss_tokens;
-		prompt_tokens_details = move.prompt_tokens_details;
-	}
-
-	Usage& operator=(Usage&& move)
-	{
-		if (this != &move) 
-		{
-			prompt_tokens = move.prompt_tokens;
-			completion_tokens = move.completion_tokens;
-			total_tokens = move.total_tokens;
-			prompt_cache_hit_tokens = move.prompt_cache_hit_tokens;
-			prompt_cache_miss_tokens = move.prompt_cache_miss_tokens;
-			prompt_tokens_details = move.prompt_tokens_details;
-		}
-		return *this;
-	}
 };
 
 struct TokenLogprob
