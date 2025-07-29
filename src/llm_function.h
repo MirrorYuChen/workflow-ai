@@ -17,21 +17,23 @@ public:
 	bool register_function(const FunctionDefinition& definition,
 						   FunctionHandler handler);
 	std::vector<Tool> get_functions() const;
-	std::vector<FunctionDefinition> get_function_definitions() const;
-	void execute_function(const std::string& name,
-						  const std::string& arguments,
-						  FunctionResult *res) const;
-	WFGoTask *async_execute_function(const std::string& name,
-									 const std::string& arguments,
-									 FunctionResult *res) const;
+//	std::vector<FunctionDefinition> get_function_definitions() const;
 	bool has_function(const std::string& name) const;
 	void clear_functions();
+
+	void execute(const std::string& name,
+				 const std::string& arguments,
+				 FunctionResult *res) const;
+	WFGoTask *async_execute(const std::string& name,
+							const std::string& arguments,
+							FunctionResult *res) const;
 
 private:
 	std::map<std::string, FunctionDefinition> functions;
 	std::map<std::string, FunctionHandler> handlers;
 };
 
+/*
 class FunctionBuilder
 {
 public:
@@ -56,6 +58,8 @@ public:
 private:
 	FunctionDefinition definition;
 };
+
+*/
 
 } // namespace wfai
 

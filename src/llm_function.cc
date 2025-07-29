@@ -5,14 +5,14 @@
 
 namespace wfai {
 
-bool FunctionManager::register_function(const FunctionDefinition& definition,
+bool FunctionManager::register_function(const FunctionDefinition& def,
 										FunctionHandler handler)
 {
-	if (this->functions.find(definition.name) != this->functions.end())
+	if (this->functions.find(def.name) != this->functions.end())
 		return false;
 
-	this->functions.emplace(definition.name, definition);
-	this->handlers.emplace(definition.name, std::move(handler));
+	this->functions.emplace(def.name, def);
+	this->handlers.emplace(def.name, std::move(handler));
 	return true;
 }
 
@@ -30,7 +30,7 @@ std::vector<Tool> FunctionManager::get_functions() const
 
 	return tools;
 }
-
+/*
 std::vector<FunctionDefinition> FunctionManager::get_function_definitions() const
 {
 	std::vector<FunctionDefinition> definitions;
@@ -39,10 +39,11 @@ std::vector<FunctionDefinition> FunctionManager::get_function_definitions() cons
 
 	return definitions;
 }
+*/
 
-void FunctionManager::execute_function(const std::string& name,
-									   const std::string& arguments,
-									   FunctionResult *result) const
+void FunctionManager::execute(const std::string& name,
+							  const std::string& arguments,
+							  FunctionResult *result) const
 {
 	result->name = name;
 
@@ -63,9 +64,9 @@ void FunctionManager::execute_function(const std::string& name,
 	return;
 }
 
-WFGoTask *FunctionManager::async_execute_function(const std::string& name,
-												  const std::string& arguments,
-												  FunctionResult *result) const
+WFGoTask *FunctionManager::async_execute(const std::string& name,
+										 const std::string& arguments,
+										 FunctionResult *result) const
 {
 	auto it = this->handlers.find(name);
 	if (it == this->handlers.end())
@@ -76,10 +77,11 @@ WFGoTask *FunctionManager::async_execute_function(const std::string& name,
 			result->success = false;
 			result->error_message = "Function not found: " + name;
 		}
-		return nullptr;
+		return nullptr; // TODO: should use WFEmptyTask instead
 	}
 
-	WFGoTask *task = WFTaskFactory::create_go_task(name, it->second, arguments, result);
+	WFGoTask *task = WFTaskFactory::create_go_task(name, it->second,
+												   arguments, result);
 	return task;
 }
 
@@ -94,6 +96,7 @@ void FunctionManager::clear_functions()
 	this->handlers.clear();
 }
 
+/*
 FunctionBuilder::FunctionBuilder(const std::string& name,
 								 const std::string& desc)
 {
@@ -159,5 +162,6 @@ FunctionDefinition FunctionBuilder::build() const
 {
 	return this->definition;
 }
+*/
 
 } // namespace wfai

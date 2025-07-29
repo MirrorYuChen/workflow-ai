@@ -5,6 +5,7 @@
 #include <string.h>
 #include <string>
 #include "workflow/WFHttpChunkedClient.h"
+#include "workflow/Workflow.h"
 #include "llm_util.h"
 #include "chat_response.h"
 #include "chat_request.h"
@@ -26,11 +27,11 @@ public:
 	using extract_t = std::function<void (WFHttpChunkedTask *)>;
 	using callback_t = std::function<void (WFHttpChunkedTask *)>;
 
-	WFHttpChunkedTask *create_chat_task(ChatCompletionRequest request,
+	WFHttpChunkedTask *create_chat_task(const ChatCompletionRequest& request,
 										llm_extract_t extract,
 										llm_callback_t callback);
 
-	WFHttpChunkedTask *create_chat_with_tools(ChatCompletionRequest request,
+	WFHttpChunkedTask *create_chat_with_tools(const ChatCompletionRequest& request,
 											  llm_extract_t extract,
 											  llm_callback_t callback);
 
@@ -74,6 +75,8 @@ private:
 								const std::string& tool_call_id,
 								llm_extract_t extract,
 								llm_callback_t callback);
+
+	void parallel_tool_calls_callback(const ParallelWork *pwork);
 
 private:
 	WFHttpChunkedClient client;

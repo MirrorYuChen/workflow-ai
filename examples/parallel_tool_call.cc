@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <string>
+#include <thread>
+#include <chrono>
 #include "workflow/HttpMessage.h"
 #include "workflow/HttpUtil.h"
 #include "workflow/WFTaskFactory.h"
@@ -15,19 +17,18 @@ volatile bool stop_flag;
 WFFacilities::WaitGroup wait_group(1);
 FunctionManager func_mgr;
 
-// 模拟本地查询天气的功能，比如：{"location":"深圳","unit":"celsius"}
 void get_current_weather(const std::string& arguments, FunctionResult *result)
 {
 	fprintf(stderr, "function calling...get_current_weather()\n");
 	fprintf(stderr, "parameters: %s\n", arguments.c_str());
 
 	std::map<std::string, double> fake_weather_map {
-		{"北京", 0},
+		{"北京", 30},
 		{"深圳", 28},
-		{"昆明", 27}
+		{"昆明", 26}
 	};
 
-	result->name = "get_current_time";
+	result->name = "get_current_weather";
 	result->success = false;
 
 	// parse json
@@ -85,13 +86,31 @@ void get_current_weather(const std::string& arguments, FunctionResult *result)
 		if (unit == "fahrenheit")
 			temperature = temperature * 1.80 + 32.0;
 	}
-
 	result->result = std::to_string(temperature);
 	json_value_destroy(root);
 	return;
 }
 
-void register_local_function()
+// 模拟查询时间的功能
+void get_current_time(const std::string& arguments, FunctionResult *result)
+{
+	fprintf(stderr, "function calling...get_current_time()\n");
+	fprintf(stderr, "parameters: %s\n", arguments.c_str());
+	
+	result->name = "get_current_time";
+	result->success = true;
+
+	// 简单返回当前时间戳
+	auto now = std::chrono::system_clock::now();
+	auto time_t = std::chrono::system_clock::to_time_t(now);
+	result->result = std::ctime(&time_t);
+
+	// 移除换行符
+	if (!result->result.empty() && result->result.back() == '\n')
+		result->result.pop_back();
+}
+
+void register_local_functions()
 {
 	FunctionDefinition weather_func = {
 		.name = "get_weather",
@@ -114,7 +133,15 @@ void register_local_function()
 	weather_func.add_parameter("unit", unit_prop, false);
 
 	func_mgr.register_function(weather_func, get_current_weather);
-	fprintf(stderr, "register weather function successfully.\n");
+
+	FunctionDefinition time_func = {
+		.name = "get_time",
+		.description = "获取当前时间",
+	};
+
+	func_mgr.register_function(time_func, get_current_time);
+
+	fprintf(stderr, "registered weather and time functions successfully.\n");
 }
 
 void callback(WFHttpChunkedTask *task,
@@ -160,7 +187,7 @@ void extract(WFHttpChunkedTask *task,
 			fprintf(stderr, "Reasoning: %s\n",
 					chunk->choices[0].delta.reasoning_content.c_str());
 		}
-	
+
 		if (!chunk->choices[0].delta.content.empty())
 		{
 			fprintf(stderr, "Content: %s\n",
@@ -191,16 +218,18 @@ int main(int argc, char *argv[])
 
 	LLMClient client(argv[1]);
 	client.set_function_manager(&func_mgr);
-	register_local_function();
+	register_local_functions();
 
 	wfai::ChatCompletionRequest request;
 	request.model = "deepseek-chat";
-//	request.stream = true;
 	request.messages.push_back({"system", "You are a helpful assistant"});
-	request.messages.push_back({"user", "深圳现在的天气怎么样？"});
+
+	// 提出一个需要并行调用多个工具的问题
+	request.messages.push_back({"user", "请告诉我北京和深圳的天气情况，还有现在的时间"});
 
 	auto *task = client.create_chat_with_tools(request, extract, callback);
 
+	fprintf(stderr, "Starting parallel tool calls test...\n");
 	task->start();
 	wait_group.wait();
 
