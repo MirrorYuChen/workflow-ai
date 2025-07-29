@@ -125,7 +125,8 @@ public:
 	bool append_buffer(const void *data, size_t size);
 	bool parse_json()
 	{
-		return ChatResponse::parse_json((const char *)this->buffer.ptr, this->buffer.size);
+		return ChatResponse::parse_json((const char *)this->buffer.ptr,
+										this->buffer.size);
 	}
 
 private:

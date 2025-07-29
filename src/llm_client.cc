@@ -250,40 +250,39 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 	req->tool_choice = "none";
 	req->tools.clear();
 
+	ToolCallsContext *ctx = new ToolCallsContext(
+		req, resp, std::move(extract), std::move(callback));
+
 	// calculate
 	if (resp->choices[0].message.tool_calls.size() == 1)
 	{
 		const auto& tc = resp->choices[0].message.tool_calls[0];
 		// if (tc.type == "function")
 		FunctionResult *res = new FunctionResult();
+		ctx->results.push_back(res);
+		ctx->tool_call_ids.push_back(tc.id);
+
 		WFGoTask *next = this->function_manager->async_execute(
 			tc.function.name,
 			tc.function.arguments,
 			res);
 
+		next->user_data = ctx;
+
 		auto callback_handler = std::bind(
-			&LLMClient::function_call_callback,
+			&LLMClient::tool_calls_callback,
 			this,
-			std::placeholders::_1,
-			req,
-			resp,
-			res,
-			tc.id,
-			std::move(extract),
-			std::move(callback)
+			std::placeholders::_1
 		);
 
 		if (next) // should return WFEmptyTask instead of nullptr
 		{
-			next->set_callback(callback_handler);
+			next->set_callback(std::move(callback_handler));
 			series_of(task)->push_back(next);
 		}
 	}
 	else
 	{
-		ToolCallsContext *ctx = new ToolCallsContext(
-			req, resp, std::move(extract), std::move(callback));
-
 		auto p_cb = std::bind(
 			&LLMClient::parallel_tool_calls_callback,
 			this,
@@ -318,9 +317,9 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 
 void LLMClient::parallel_tool_calls_callback(const ParallelWork *pwork)
 {
-	ToolCallsContext *ctx = static_cast<ToolCallsContext*>(pwork->get_context());
-	if (!ctx)
-		return;
+	ToolCallsContext *ctx = static_cast<ToolCallsContext *>(pwork->get_context());
+//	if (!ctx)
+//		return;
 
 	// Add all tool call results to the request messages
 	for (size_t i = 0; i < ctx->results.size(); ++i)
@@ -359,51 +358,51 @@ void LLMClient::parallel_tool_calls_callback(const ParallelWork *pwork)
 
 	auto *next = this->create(ctx->req, std::move(extract_handler),
 							  std::move(callback_handler));
-
-	delete ctx;
 	series_of(pwork)->push_back(next);
+	delete ctx;
 }
 
-void LLMClient::function_call_callback(WFGoTask *task,
-									   ChatCompletionRequest *req,
-									   ChatCompletionResponse *resp,
-									   FunctionResult *res,
-									   const std::string& tool_call_id,
-									   llm_extract_t extract,
-									   llm_callback_t callback)
+void LLMClient::tool_calls_callback(WFGoTask *task)
 {
+	ToolCallsContext *ctx = static_cast<ToolCallsContext*>(task->user_data);
+//	if (!ctx || ctx->results.empty() || ctx->tool_call_ids.empty())
+//		return;
+
 	Message msg;
 	msg.role = "tool";
-	msg.tool_call_id = tool_call_id;
-	msg.content = res->success ? res->result : res->error_message;
-	req->messages.push_back(msg);
+	msg.tool_call_id = ctx->tool_call_ids[0];
+	if (ctx->results[0]->success)
+		msg.content = ctx->results[0]->result;
+	else
+		msg.content = ctx->results[0]->error_message;
+	ctx->req->messages.push_back(std::move(msg));
 
-	delete res;
-	delete resp;
-	resp = new ChatCompletionResponse();
+	delete ctx->resp;
+	ctx->resp = new ChatCompletionResponse();
 
 	auto extract_handler = std::bind(
 		&LLMClient::extract,
 		this,
 		std::placeholders::_1,
-		req,
-		resp,
-		std::move(extract)
+		ctx->req,
+		ctx->resp,
+		ctx->extract
 	);
-	
+
 	auto callback_handler = std::bind(
 		&LLMClient::callback,
 		this,
 		std::placeholders::_1,
-		req,
-		resp,
+		ctx->req,
+		ctx->resp,
 		nullptr,
-		std::move(callback)
+		ctx->callback
 	);
 
-	auto *next = this->create(req, std::move(extract_handler),
+	auto *next = this->create(ctx->req, std::move(extract_handler),
 							  std::move(callback_handler));
 	series_of(task)->push_back(next);
+	delete ctx;
 }
 
 void LLMClient::extract(WFHttpChunkedTask *task,

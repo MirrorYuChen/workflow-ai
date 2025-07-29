@@ -1,5 +1,3 @@
-#include <sstream>
-#include <iostream>
 #include "workflow/WFTaskFactory.h"
 #include "llm_function.h"
 
@@ -30,16 +28,6 @@ std::vector<Tool> FunctionManager::get_functions() const
 
 	return tools;
 }
-/*
-std::vector<FunctionDefinition> FunctionManager::get_function_definitions() const
-{
-	std::vector<FunctionDefinition> definitions;
-	for (const auto& pair : this->functions)
-		definitions.push_back(pair.second);
-
-	return definitions;
-}
-*/
 
 void FunctionManager::execute(const std::string& name,
 							  const std::string& arguments,
@@ -95,73 +83,5 @@ void FunctionManager::clear_functions()
 	this->functions.clear();
 	this->handlers.clear();
 }
-
-/*
-FunctionBuilder::FunctionBuilder(const std::string& name,
-								 const std::string& desc)
-{
-	this->definition.name = name;
-	this->definition.description = desc;
-}
-
-FunctionBuilder& FunctionBuilder::add_string_parameter(const std::string& name,
-													   const std::string& desc,
-													   bool required)
-{
-	ParameterProperty property = {
-		.type = "string",
-		.description = desc,
-	};
-
-	this->definition.add_parameter(name, std::move(property), required);
-	return *this;
-}
-
-FunctionBuilder& FunctionBuilder::add_number_parameter(const std::string& name,
-													   const std::string& desc,
-													   bool required)
-{
-	ParameterProperty property = {
-		.type = "number",
-		.description = desc,
-	};
-
-	this->definition.add_parameter(name, std::move(property), required);
-	return *this;
-}
-
-FunctionBuilder& FunctionBuilder::add_boolean_parameter(const std::string& name,
-														const std::string& desc,
-														bool required)
-{
-	ParameterProperty property = {
-		.type = "boolean",
-		.description = desc,
-	};
-
-	this->definition.add_parameter(name, std::move(property), required);
-	return *this;
-}
-
-FunctionBuilder& FunctionBuilder::add_enum_parameter(const std::string& name,
-													 const std::string& desc, 
-													 const std::vector<std::string>& values,
-													 bool required)
-{
-	ParameterProperty property;
-	property.type = "string";  // 枚举在JSON Schema中通常定义为string类型
-	property.description = desc;
-	property.enum_values = values;  // 存储有效枚举值列表
-
-	this->definition.add_parameter(name, std::move(property), required);
-
-	return *this;
-}
-
-FunctionDefinition FunctionBuilder::build() const
-{
-	return this->definition;
-}
-*/
 
 } // namespace wfai

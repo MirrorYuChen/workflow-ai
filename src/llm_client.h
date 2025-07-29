@@ -68,14 +68,7 @@ private:
 							 llm_extract_t extract,
 							 llm_callback_t callback);
 
-	void function_call_callback(WFGoTask *task,
-								ChatCompletionRequest *req,
-								ChatCompletionResponse *resp,
-								FunctionResult *res,
-								const std::string& tool_call_id,
-								llm_extract_t extract,
-								llm_callback_t callback);
-
+	void tool_calls_callback(WFGoTask *task);
 	void parallel_tool_calls_callback(const ParallelWork *pwork);
 
 private:

@@ -17,7 +17,6 @@ public:
 	bool register_function(const FunctionDefinition& definition,
 						   FunctionHandler handler);
 	std::vector<Tool> get_functions() const;
-//	std::vector<FunctionDefinition> get_function_definitions() const;
 	bool has_function(const std::string& name) const;
 	void clear_functions();
 
@@ -32,34 +31,6 @@ private:
 	std::map<std::string, FunctionDefinition> functions;
 	std::map<std::string, FunctionHandler> handlers;
 };
-
-/*
-class FunctionBuilder
-{
-public:
-	FunctionBuilder(const std::string& name, const std::string& description);
-
-	FunctionBuilder& add_string_parameter(const std::string& name,
-										  const std::string& description,
-										  bool required = false);
-	FunctionBuilder& add_number_parameter(const std::string& name,
-										  const std::string& description,
-										  bool required = false);
-	FunctionBuilder& add_boolean_parameter(const std::string& name,
-										   const std::string& description,
-										   bool required = false);
-	FunctionBuilder& add_enum_parameter(const std::string& name,
-										const std::string& description, 
-										const std::vector<std::string>& values,
-										bool required = false);
-
-	FunctionDefinition build() const;
-
-private:
-	FunctionDefinition definition;
-};
-
-*/
 
 } // namespace wfai
 

@@ -30,7 +30,7 @@ void get_current_weather(const std::string& arguments, FunctionResult *result)
 	result->name = "get_current_time";
 	result->success = false;
 
-	// parse json
+	// parse json by ourselves
 	char *json_buf = (char *)malloc(arguments.length() + 1);
 	if (!json_buf)
 	{
@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
 
 	LLMClient client(argv[1]);
 	client.set_function_manager(&func_mgr);
-	register_local_function();
+	register_local_function(); // make sure we have manager and functions
 
 	wfai::ChatCompletionRequest request;
 	request.model = "deepseek-chat";

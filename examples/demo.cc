@@ -1,10 +1,8 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include <string>
 #include "workflow/HttpMessage.h"
-#include "workflow/HttpUtil.h"
 #include "workflow/WFTaskFactory.h"
 #include "workflow/WFFacilities.h"
 #include "llm_client.h"
@@ -18,41 +16,12 @@ void callback(WFHttpChunkedTask *task,
 			  ChatCompletionRequest *request,
 			  ChatCompletionResponse *response)
 {
-	protocol::HttpRequest *req = task->get_req();
-	protocol::HttpResponse *resp = task->get_resp();
-	int state = task->get_state();
-	int error = task->get_error();
-
-	fprintf(stderr, "Task state: %d\n", state);
-
-	if (state != WFT_STATE_SUCCESS)
+	if (task->get_state() != WFT_STATE_SUCCESS)
 	{
-		fprintf(stderr, "Task error: %d\n", error);
+		fprintf(stderr, "Task state: %d error: %d\n",
+				task->get_state(), task->get_error());
 		return;
 	}
-
-	std::string name;
-	std::string value;
-
-	fprintf(stderr, "%s %s %s\r\n", req->get_method(),
-									req->get_http_version(),
-									req->get_request_uri());
-
-	protocol::HttpHeaderCursor req_cursor(req);
-
-	while (req_cursor.next(name, value))
-		fprintf(stderr, "%s: %s\r\n", name.c_str(), value.c_str());
-	fprintf(stderr, "\r\n");
-
-	fprintf(stderr, "%s %s %s\r\n", resp->get_http_version(),
-									resp->get_status_code(),
-									resp->get_reason_phrase());
-
-	protocol::HttpHeaderCursor resp_cursor(resp);
-
-	while (resp_cursor.next(name, value))
-		fprintf(stderr, "%s: %s\r\n", name.c_str(), value.c_str());
-	fprintf(stderr, "\r\n");
 
 	if (!request->stream)
 	{
@@ -71,9 +40,20 @@ void extract(WFHttpChunkedTask *task,
 			 ChatCompletionRequest *request,
 			 ChatCompletionChunk *chunk)
 {
-	fprintf(stderr, "reason content=%s content=%s\n",
-			chunk->choices[0].delta.reasoning_content.c_str(),
-			chunk->choices[0].delta.content.c_str());
+	if (chunk && !chunk->choices.empty())
+	{
+		if (!chunk->choices[0].delta.reasoning_content.empty())
+		{
+			fprintf(stderr, "Reasoning: %s\n",
+					chunk->choices[0].delta.reasoning_content.c_str());
+		}
+
+		if (!chunk->choices[0].delta.content.empty())
+		{
+			fprintf(stderr, "Content: %s\n",
+					chunk->choices[0].delta.content.c_str());
+		}
+	}
 }
 
 void sig_handler(int signo)
@@ -97,21 +77,15 @@ int main(int argc, char *argv[])
 	stop_flag = false;
 
 	LLMClient client(argv[1]);
-	// TODO: init with conf
-	// client.set_redirect_max();
-	// client.set_ttft();
 
 	wfai::ChatCompletionRequest request;
 	request.model = "deepseek-reasoner";
 	request.stream = true;
 	request.messages.push_back({"user", "hi"});
 
-	auto *task = client.create_chat_task(request,
-										 extract,
-										 callback);
+	auto *task = client.create_chat_task(request, extract, callback);
 
 	task->start();
 	wait_group.wait();
-
 	return 0;
 }

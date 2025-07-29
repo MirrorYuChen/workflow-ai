@@ -2,18 +2,18 @@
 
 As modern LLM applications increasingly require not just API requests but also complex tool calls and agent orchestration, efficiently organizing network and compute tasks presents a critical challenge for C++ programs. 
 
-**Workflow AI** provides a high-performance C++ library for interacting with Large Language Models (LLMs) built on [C++ Workflow](https://github.com/sogou/workflow) and supports 💬 `basic chatbot` , 🔧`function calling` and ⚡`parallel execution`.
+**Workflow AI** provides a high-performance C++ library for interacting with Large Language Models (LLMs) built on [C++ Workflow](https://github.com/sogou/workflow) and supports 💬 `basic chatbot` , 🔧`function calling` and ⚡`parallel execution` so far.
 
 By abstracting the complexity of mixed I/O and compute workflows, we make LLM integration easy and efficient for all C++ applications.
 
 ## 1. Features
 
-- 🚀 **High Performance**: Built on Sogou C++ Workflow for efficient async non-blocking I/O and Computation
+- 🚀 **High Performance**: Built on C++ Workflow for efficient async non-blocking I/O and Computation
 - 📒 **Memory**: Simple memory module for multi round sessions
 - 🔧 **Function Calling**: Native support for LLM function/tool calling
 - ⚡ **Parallel Tool Execution**: Execute multiple tool calls in parallel asynchronously
 - 🌊 **Streaming Support**: Real-time streaming responses
-- 🛠️ **Client/Proxy**: Create task as Client or Proxy. Server is comming soon
+- 🛠️ **Client / Proxy**: Create task as Client or Proxy. Server is comming soon
 
 
 ## 2. RoadMap
@@ -34,14 +34,15 @@ This is the very beginning of a multi-layer LLM interaction framework. Here's th
 2. **Tool Calling Layer** (Partial)
    - [x] Single tool execution
    - [x] Parallel tool execution
+   - [ ] Workflow native task integration
    - [ ] MCP Framework (Multi-tool Coordination)
      - [ ] Local command execution (e.g., ls, grep)
      - [ ] Remote RPC integration
         
 3. **Memory Storage Layer** (Partial)
-   - [x] context in-memory storage
-   - [ ] offload local disk storage
-   - [ ] offload distributed storage
+   - [x] Context in-memory storage
+   - [ ] Offload local disk storage
+   - [ ] Offload distributed storage
 
 ### 2.2 API Modes
 - [x] Asynchronous Task API (Done)
@@ -144,7 +145,7 @@ int main(int argc, char *argv[])
 {
     LLMClient client("YOUR_API_KEY"); // build a client by `api_key`. support `base_url` and DeepSeek is default
 
-    wfai::ChatCompletionRequest request; // fill the request for LLMs
+    ChatCompletionRequest request; // fill the request for LLMs
     request.model = "deepseek-reasoner";
     request.stream = true;
     request.messages.push_back({"user", "hi"});
@@ -168,17 +169,16 @@ int main(int argc, char *argv[])
 ```cpp
 void extract(WFHttpChunkedTask *task, ChatCompletionRequest *request, ChatCompletionChunk *chunk)
 {
-    // 
     if (!chunk->choices[0].delta.reasoning_content.empty())
         fprintf(stderr, "reason content=%s\n", chunk->choices[0].delta.reasoning_content.c_str());
-    else
+    if (!chunk->choices[0].delta.content.empty())
         fprintf(stderr, "content=%s\n", chunk->choices[0].delta.content.c_str());
 }
 ```
 
 **Step-3** : Implement `callback()`. 
 
-Every task will get to callback both for steaming or non streaming.
+Every task will get to callback both for steaming or non streaming mode.
 
 - response : the complete message for this task
 
@@ -221,7 +221,7 @@ create WFGoTask for local function computing
          ↓
     ┌───────────┐
     │ Chat Task │ // send all the context and results
-    │  to LLMs  │ // multi round by memory module
+    │  to LLMs  │ // multi round supported by memory module
     └───────────┘
          ↓ 
   👩‍💻 extract() 
@@ -252,7 +252,6 @@ void get_current_weather(const std::string& arguments, FunctionResult *result)
 This is one time preparation, too.
 
 ```cpp
-
 int main()
 {
     LLMClient client("your_api_key");
@@ -264,7 +263,7 @@ int main()
         .description = "Get current weather information"
     };
     func_mgr.register_function(weather_func, get_current_weather);
-    ...
+    // ...
 }
 ```
 
@@ -279,13 +278,13 @@ As long as we have function in manager and set `request.tool_choice`, LLMs will 
     request.messages.push_back({"user", "What's the weather like?"});
     request.tool_choice = "auto"; // set `auto` or `required` to enable tools using
 
-    auto *task = client.create_chat_task(request, extract_fn, callback_fn);
+    auto *task = client.create_chat_task(request, extract, callback);
     task->start();
-    ...
+    // ...
 }
 ```
 
-**Step-4**  : Implement `extract()` and `callback()`.
+**Step-4** : Implement `extract()` and `callback()`.
 
 ```cpp
 void extract(WFHttpChunkedTask *task, ChatCompletionRequest *request, ChatCompletionChunk *chunk);
@@ -321,7 +320,6 @@ This will execute weather queries for both cities and time query simultaneously,
 | [deepseek_chatbot.cc](./examples/deepseek_chatbot.cc) | DeepSeek chatbot implementation for multi round session with memory |
 | [tool_call.cc](./examples/tool_call.cc) | Basic function calling with single tool |
 | [parallel_tool_call.cc](./examples/parallel_tool_call.cc) | Demonstrates parallel execution of multiple tools |
-
 
 ## 5.3 License
 

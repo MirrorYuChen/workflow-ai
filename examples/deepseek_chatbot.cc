@@ -17,21 +17,22 @@ using namespace wfai;
 volatile bool stop_flag;
 WFFacilities::WaitGroup wait_group(1);
 
-struct example_context
+class ExampleContext
 {
+public:
 	// for request
 	LLMClient *client;
 	std::string model;
 	bool stream;
 
 	// for memory
-	wfai::Memory *memory;
+	Memory *memory;
 	std::string session_id = "default"; // for this session
 	std::string stream_role;			// save role for streaming
 	std::string stream_content;			// save whole content for streaming
 
-	// for printing response
-	int state;
+private:
+	int state; // for printing response
 	enum
 	{
 		CHAT_STATE_BEGIN = 0,
@@ -40,6 +41,7 @@ struct example_context
 		CHAT_STATE_FINISH,
 	};
 
+public:
 	void reset_state()
 	{
 		state = CHAT_STATE_BEGIN;
@@ -176,7 +178,7 @@ void callback(WFHttpChunkedTask *task,
 			  ChatCompletionRequest *request,
 			  ChatCompletionResponse *response)
 {
-	example_context *ctx = (example_context *)series_of(task)->get_context();
+	ExampleContext *ctx = (ExampleContext *)series_of(task)->get_context();
 	bool success = false;
 
 	if (task->get_state() == WFT_STATE_SUCCESS)
@@ -228,7 +230,7 @@ void extract(WFHttpChunkedTask *task,
 		return;
 	}
 
-	example_context *ctx = (example_context *)series_of(task)->get_context();
+	ExampleContext *ctx = (ExampleContext *)series_of(task)->get_context();
 	const auto& choice = chunk->choices[0];
 
 	if (choice.delta.reasoning_content.length() &&
@@ -263,7 +265,7 @@ void next_query(SeriesWork *series)
 	int len;
 	char query[MAX_CONTENT_LENGTH];
 	std::string body;
-	example_context *ctx = (example_context *)series->get_context();
+	ExampleContext *ctx = (ExampleContext *)series->get_context();
 
 	fprintf(stderr, "Query> ");
 	while (stop_flag == false && (fgets(query, MAX_CONTENT_LENGTH, stdin)))
@@ -317,7 +319,7 @@ int main(int argc, char *argv[])
 	LLMClient client(argv[1]);
 	Memory memory;
 
-	struct example_context ctx;
+	ExampleContext ctx;
 	ctx.client = &client;
 	ctx.model = "deepseek-reasoner";
 	ctx.stream = true;
