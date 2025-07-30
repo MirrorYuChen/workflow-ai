@@ -107,11 +107,13 @@ bazel run :parallel_tool_call -- <your_api_key>
 ```bash
 mkdir cmake.build && cd cmake.build
 
-# Download workflow source code for the first time
+# Download workflow source code and make for the first time
 # git clone https://github.com/sogou/workflow.git /PATH/TO/WORKFLOW
+# cd /PATH/TO/WORKFLOW && make
 
 cmake .. -D Workflow_DIR=/PATH/TO/WORKFLOW
 make
+./demo <your_api_key>
 ```
 
 ## 4. Usage
@@ -236,8 +238,8 @@ create WFGoTask for local function computing
 This preparation only need to do once before all the requests.
 
 The parameters for all the functions are fixed : 
-- const std::string& arguments : the arguments from LLMs in Json format, e.g. {"location":"Shenzhen"}
-- FunctionResult *result : the result to fill
+- arguments : the arguments from LLMs in Json format, e.g. {"location":"Shenzhen"}
+- result : the return value for our function to fill
 
 ```cpp
 void get_current_weather(const std::string& arguments, FunctionResult *result)
