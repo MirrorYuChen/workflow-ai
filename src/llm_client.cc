@@ -92,24 +92,21 @@ LLMClient::LLMClient(const std::string& api_key,
 	this->function_manager = nullptr;
 }
 
-WFHttpChunkedTask *LLMClient::create_chat_task(const ChatCompletionRequest& request,
+WFHttpChunkedTask *LLMClient::create_chat_task(ChatCompletionRequest& request,
 											   llm_extract_t extract,
 											   llm_callback_t callback)
 {
-	if (!this->function_manager || request.tool_choice == "none")
-	{
-		return this->create_basic_task(request,
-									   std::move(extract),
-									   std::move(callback));
-	}
-
 	ChatCompletionRequest *req = new ChatCompletionRequest(request);
 	ChatCompletionResponse *resp = new ChatCompletionResponse();
 
-	auto tools = this->function_manager->get_functions();
-	for (const auto& tool : tools)
-		req->tools.emplace_back(tool);
+	return this->create(req, resp, std::move(extract), std::move(callback));
+}
 
+WFHttpChunkedTask *LLMClient::create(ChatCompletionRequest *req,
+									 ChatCompletionResponse *resp,
+									 llm_extract_t extract,
+									 llm_callback_t callback)
+{
 	auto extract_handler = std::bind(
 		&LLMClient::extract,
 		this,
@@ -119,52 +116,37 @@ WFHttpChunkedTask *LLMClient::create_chat_task(const ChatCompletionRequest& requ
 		extract
 	);
 
-	auto callback_handler = std::bind(
-		&LLMClient::callback_with_tools,
-		this,
-		std::placeholders::_1,
-		req,
-		resp,
-		std::move(extract), // for multi round session
-		std::move(callback)
-	);
+	callback_t callback_handler;
 
-	return this->create(req, std::move(extract_handler), std::move(callback_handler));
-}
+	if (this->function_manager && req->tool_choice != "none")
+	{
+		auto tools = this->function_manager->get_functions();
+		for (const auto& tool : tools)
+			req->tools.emplace_back(tool);
 
-WFHttpChunkedTask *LLMClient::create_basic_task(const ChatCompletionRequest& request,
-												llm_extract_t extract,
-												llm_callback_t callback)
-{
-	ChatCompletionRequest *req = new ChatCompletionRequest(request);
-	ChatCompletionResponse *resp = new ChatCompletionResponse();
+		callback_handler = std::bind(
+			&LLMClient::callback_with_tools,
+			this,
+			std::placeholders::_1,
+			req,
+			resp,
+			std::move(extract), // for multi round session
+			std::move(callback)
+		);
+	}
+	else
+	{
+		callback_handler = std::bind(
+			&LLMClient::callback,
+			this,
+			std::placeholders::_1,
+			req,
+			resp,
+			nullptr,
+			std::move(callback)
+		);
+	}
 
-	auto extract_handler = std::bind(
-		&LLMClient::extract,
-		this,
-		std::placeholders::_1,
-		req,
-		resp,
-		std::move(extract)
-	);
-
-	auto callback_handler = std::bind(
-		&LLMClient::callback,
-		this,
-		std::placeholders::_1,
-		req,
-		resp,
-		nullptr,
-		std::move(callback)
-	);
-
-	return this->create(req, std::move(extract_handler), std::move(callback_handler));
-}
-
-WFHttpChunkedTask *LLMClient::create(ChatCompletionRequest *req,
-									 extract_t extract_handler,
-									 callback_t callback_handler)
-{
 	auto *task = client.create_chunked_task(
 		this->base_url,
 		this->redirect_max,
@@ -356,8 +338,7 @@ void LLMClient::parallel_tool_calls_callback(const ParallelWork *pwork)
 		ctx->callback
 	);
 
-	auto *next = this->create(ctx->req, std::move(extract_handler),
-							  std::move(callback_handler));
+	auto *next = this->create(ctx->req, ctx->resp, ctx->extract, ctx->callback);
 	series_of(pwork)->push_back(next);
 	delete ctx;
 }
@@ -399,8 +380,7 @@ void LLMClient::tool_calls_callback(WFGoTask *task)
 		ctx->callback
 	);
 
-	auto *next = this->create(ctx->req, std::move(extract_handler),
-							  std::move(callback_handler));
+	auto *next = this->create(ctx->req, ctx->resp, ctx->extract, ctx->callback);
 	series_of(task)->push_back(next);
 	delete ctx;
 }

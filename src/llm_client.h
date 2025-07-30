@@ -16,6 +16,7 @@ namespace wfai {
 class LLMClient
 {
 public:
+	///// Asynchronous APIs /////
 	using llm_extract_t = std::function<void(WFHttpChunkedTask *,
 											 ChatCompletionRequest *,
 											 ChatCompletionChunk *)>;
@@ -27,7 +28,7 @@ public:
 	using extract_t = std::function<void (WFHttpChunkedTask *)>;
 	using callback_t = std::function<void (WFHttpChunkedTask *)>;
 
-	WFHttpChunkedTask *create_chat_task(const ChatCompletionRequest& request,
+	WFHttpChunkedTask *create_chat_task(ChatCompletionRequest& request,
 										llm_extract_t extract,
 										llm_callback_t callback);
 
@@ -43,14 +44,12 @@ public:
 						   FunctionHandler handler);
 
 private:
-	WFHttpChunkedTask *create_basic_task(const ChatCompletionRequest& request,
-										 llm_extract_t extract,
-										 llm_callback_t callback);
-
 	WFHttpChunkedTask *create(ChatCompletionRequest *req,
-							  extract_t extract,
-							  callback_t callback);
+							  ChatCompletionResponse *resp,
+							  llm_extract_t extract,
+							  llm_callback_t callback);
 
+	// TODO: optimize the parameter by context
 	void extract(WFHttpChunkedTask *task,
 				 ChatCompletionRequest *req,
 				 ChatCompletionResponse *resp,

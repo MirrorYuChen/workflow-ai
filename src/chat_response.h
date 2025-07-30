@@ -54,8 +54,8 @@ struct Buffer
 	size_t size;
 	size_t capacity;
 
-	Buffer() : size(0), capacity(0) { }
-	~Buffer() { if (capacity) free(ptr); }
+	Buffer() : ptr(nullptr), size(0), capacity(0) { }
+	~Buffer() { if (ptr) free(ptr); }
 };
 
 class ChatResponse

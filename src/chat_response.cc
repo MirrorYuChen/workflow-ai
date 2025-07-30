@@ -461,6 +461,9 @@ bool ChatCompletionResponse::parse_message(const json_object_t *object,
 
 bool ChatCompletionResponse::append_buffer(const void *data, size_t size)
 {
+    if (size == 0 || size > SIZE_MAX - buffer.size)
+		return false;
+
 	if (this->buffer.size + size > this->buffer.capacity)
 	{
 		size_t new_cap = (this->buffer.size + size) * 3 / 2;
