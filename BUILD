@@ -84,3 +84,17 @@ cc_binary(
 	],
 	visibility = ["//visibility:public"],
 )
+
+cc_binary(
+	name = "sync_demo",
+	srcs = ["examples/sync_demo.cc"],
+	deps = [":llm_task",
+			"@workflow//:http",
+			"@workflow//:workflow_hdrs"],
+	linkopts = [
+		'-lpthread',
+		'-lssl',
+		'-lcrypto',
+	],
+	visibility = ["//visibility:public"],
+)

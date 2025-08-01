@@ -24,7 +24,22 @@ struct Usage
 	{
 		int cached_tokens;
 		TokenDetails() : cached_tokens(0) { }
+		void clear()
+		{
+			cached_tokens = 0;
+		}
 	} prompt_tokens_details;		// prompt tokens 的详细信息
+
+	void clear()
+	{
+		completion_tokens = 0;
+		prompt_tokens = 0;
+		prompt_cache_hit_tokens = 0;
+		prompt_cache_miss_tokens = 0;
+		total_tokens = 0;
+		reasoning_tokens = 0;
+		prompt_tokens_details.clear();
+	}
 };
 
 struct TokenLogprob
@@ -35,17 +50,34 @@ struct TokenLogprob
 
 	TokenLogprob() = default;
 	TokenLogprob(std::string t, double lp) : token(std::move(t)), logprob(lp) {}
+
+	void clear()
+	{
+		token.clear();
+		logprob = 0.0;
+		bytes.clear();
+	}
 };
 
 struct Logprob
 {
 	TokenLogprob current_info;				// 当前 token 的信息
 	std::vector<TokenLogprob> top_logprobs;	// top N 的 token 列表
+
+	void clear()
+	{
+		current_info.clear();
+		top_logprobs.clear();
+	}
 };
 
 struct Logprobs
 {
 	std::vector<Logprob> content;	// 输出 token 对数概率信息的列表
+	void clear()
+	{
+		content.clear();
+	}
 };
 
 struct Buffer
@@ -56,6 +88,17 @@ struct Buffer
 
 	Buffer() : ptr(nullptr), size(0), capacity(0) { }
 	~Buffer() { if (ptr) free(ptr); }
+
+	void clear()
+	{
+		if (ptr)
+		{
+			free(ptr);
+			ptr = nullptr;
+		}
+		size = 0;
+		capacity = 0;
+	}
 };
 
 class ChatResponse
@@ -77,6 +120,14 @@ public:
 			std::string content;
 			std::string reasoning_content;
 			std::vector<ToolCall> tool_calls;
+
+			void clear()
+			{
+				role.clear();
+				content.clear();
+				reasoning_content.clear();
+				tool_calls.clear();
+			}
 		};
 
 		// for non-streaming : whole message
@@ -87,6 +138,15 @@ public:
 		int index;					// 该completion在模型生成的选择列表中的索引
 		Logprobs logprobs;			// 该choice的对数概率信息
 		std::string finish_reason;	// 完成原因，可为空
+
+		void clear()
+		{
+			message.clear();
+			delta.clear();
+			index = 0;
+			logprobs.content.clear();
+			finish_reason.clear();
+		}
 	};
 
 	std::vector<Choice> choices;
@@ -102,6 +162,7 @@ public:
 	ChatResponse& operator=(ChatResponse&& move);
 
 	virtual ~ChatResponse() { }
+	virtual void clear();
 
 public:
 	bool parse_json(const char *msg, size_t size);
@@ -128,6 +189,7 @@ public:
 		return ChatResponse::parse_json((const char *)this->buffer.ptr,
 										this->buffer.size);
 	}
+	void clear() override;
 
 private:
 	Buffer buffer;
@@ -158,6 +220,12 @@ public:
 	ChatCompletionChunk& operator=(ChatCompletionChunk&& move);
 
 	virtual ~ChatCompletionChunk() { }
+
+	void clear() override
+	{
+		ChatResponse::clear();
+		this->is_stream = true;
+	}
 
 private:
 	bool parse_message(const json_object_t *object, Choice& choice) override;

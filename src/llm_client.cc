@@ -5,6 +5,7 @@
 #include "workflow/HttpMessage.h"
 #include "workflow/WFHttpChunkedClient.h"
 #include "workflow/Workflow.h"
+#include "workflow/WFFacilities.h"
 #include "llm_client.h"
 
 using namespace wfai;
@@ -17,33 +18,21 @@ static constexpr uint32_t default_no_streaming_ttft = 500 * 1000; // ms
 static constexpr uint32_t default_no_streaming_tpft = 100 * 1000; // ms
 static constexpr int default_redirect_max = 3;
 
-// Context for parallel tool calls execution
-class ToolCallsContext
+// for tool calls execution, both single or parallel
+class ToolCallsData
 {
 public:
-	ToolCallsContext(ChatCompletionRequest *req,
-					 ChatCompletionResponse *resp,
-					 LLMClient::llm_extract_t extract,
-					 LLMClient::llm_callback_t callback) :
-		req(req), resp(resp),
-		extract(std::move(extract)),
-		callback(std::move(callback))
-	{
-	}
 
-	~ToolCallsContext()
+	~ToolCallsData()
 	{
 		for (auto *result : results)
 			delete result;
 	}
 
 public:
-	ChatCompletionRequest *req;
-	ChatCompletionResponse *resp;
+	LLMClient::SessionContext *context;
 	std::vector<FunctionResult *> results;
 	std::vector<std::string> tool_call_ids;
-	LLMClient::llm_extract_t extract;
-	LLMClient::llm_callback_t callback;
 };
 
 // for streaming
@@ -99,39 +88,34 @@ WFHttpChunkedTask *LLMClient::create_chat_task(ChatCompletionRequest& request,
 	ChatCompletionRequest *req = new ChatCompletionRequest(request);
 	ChatCompletionResponse *resp = new ChatCompletionResponse();
 
-	return this->create(req, resp, std::move(extract), std::move(callback));
+	SessionContext *ctx = new SessionContext(
+		req, resp, std::move(extract), std::move(callback), true);
+
+	return this->create(ctx);
 }
 
-WFHttpChunkedTask *LLMClient::create(ChatCompletionRequest *req,
-									 ChatCompletionResponse *resp,
-									 llm_extract_t extract,
-									 llm_callback_t callback)
+WFHttpChunkedTask *LLMClient::create(SessionContext *ctx)
 {
 	auto extract_handler = std::bind(
 		&LLMClient::extract,
 		this,
 		std::placeholders::_1,
-		req,
-		resp,
-		extract
+		ctx
 	);
 
 	callback_t callback_handler;
 
-	if (this->function_manager && req->tool_choice != "none")
+	if (this->function_manager && ctx->req->tool_choice != "none")
 	{
 		auto tools = this->function_manager->get_functions();
 		for (const auto& tool : tools)
-			req->tools.emplace_back(tool);
+			ctx->req->tools.emplace_back(tool);
 
 		callback_handler = std::bind(
 			&LLMClient::callback_with_tools,
 			this,
 			std::placeholders::_1,
-			req,
-			resp,
-			std::move(extract), // for multi round session
-			std::move(callback)
+			ctx
 		);
 	}
 	else
@@ -140,10 +124,7 @@ WFHttpChunkedTask *LLMClient::create(ChatCompletionRequest *req,
 			&LLMClient::callback,
 			this,
 			std::placeholders::_1,
-			req,
-			resp,
-			nullptr,
-			std::move(callback)
+			ctx
 		);
 	}
 
@@ -154,7 +135,7 @@ WFHttpChunkedTask *LLMClient::create(ChatCompletionRequest *req,
 		std::move(callback_handler)
 	);
 
-	if (req->stream)
+	if (ctx->req->stream)
 	{
 		task->set_watch_timeout(this->streaming_ttft);
 		task->set_recv_timeout(this->streaming_tpft);
@@ -171,44 +152,38 @@ WFHttpChunkedTask *LLMClient::create(ChatCompletionRequest *req,
 	http_req->add_header_pair("Connection", "keep-alive");
 	http_req->set_method("POST");
 
-	std::string body = req->to_json();
+	std::string body = ctx->req->to_json();
 	http_req->append_output_body(body.data(), body.size());
 
 	return task;
 }
 
-void LLMClient::callback(WFHttpChunkedTask *task,
-						 ChatCompletionRequest *req,
-						 ChatCompletionResponse *resp,
-						 llm_extract_t extract,
-						 llm_callback_t callback)
+void LLMClient::callback(WFHttpChunkedTask *task, SessionContext *ctx)
 {
-	if (!req->stream)
-		resp->parse_json();
+	if (!ctx->req->stream)
+		ctx->resp->parse_json();
 	// TODO: if (!ret) set error
 
-	if (callback)
-		callback(task, req, resp);
+	if (ctx->callback)
+		ctx->callback(task, ctx->req, ctx->resp);
 
-	delete req;
-	delete resp;
+	delete ctx;
 }
 
 void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
-									ChatCompletionRequest *req,
-									ChatCompletionResponse *resp,
-									llm_extract_t extract,
-									llm_callback_t callback)
+									SessionContext *ctx)
 {
+	ChatCompletionRequest *req = ctx->req;
+	ChatCompletionResponse *resp = ctx->resp;
+
 	if (!req->stream)
 	{
 		if(!resp->parse_json())
 		{
-			if (callback)
-				callback(task, req, resp);
+			if (ctx->callback)
+				ctx->callback(task, req, resp);
 
-			delete req;
-			delete resp;
+			delete ctx;
 			return;
 		}
 	}
@@ -232,8 +207,7 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 	req->tool_choice = "none";
 	req->tools.clear();
 
-	ToolCallsContext *ctx = new ToolCallsContext(
-		req, resp, std::move(extract), std::move(callback));
+	ToolCallsData *tc_data = new ToolCallsData();
 
 	// calculate
 	if (resp->choices[0].message.tool_calls.size() == 1)
@@ -241,20 +215,21 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 		const auto& tc = resp->choices[0].message.tool_calls[0];
 		// if (tc.type == "function")
 		FunctionResult *res = new FunctionResult();
-		ctx->results.push_back(res);
-		ctx->tool_call_ids.push_back(tc.id);
+		tc_data->results.push_back(res);
+		tc_data->tool_call_ids.push_back(tc.id);
 
 		WFGoTask *next = this->function_manager->async_execute(
 			tc.function.name,
 			tc.function.arguments,
 			res);
 
-		next->user_data = ctx;
+		next->user_data = tc_data;
 
 		auto callback_handler = std::bind(
 			&LLMClient::tool_calls_callback,
 			this,
-			std::placeholders::_1
+			std::placeholders::_1,
+			ctx
 		);
 
 		if (next) // should return WFEmptyTask instead of nullptr
@@ -266,20 +241,21 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 	else
 	{
 		auto p_cb = std::bind(
-			&LLMClient::parallel_tool_calls_callback,
+			&LLMClient::p_tool_calls_callback,
 			this,
-			std::placeholders::_1
+			std::placeholders::_1,
+			ctx
 		);
 
 		ParallelWork *pwork = Workflow::create_parallel_work(std::move(p_cb));
-		pwork->set_context(ctx);
+		pwork->set_context(tc_data);
 
 		// Create series for each tool call
 		for (const auto& tc : resp->choices[0].message.tool_calls)
 		{
 			FunctionResult *res = new FunctionResult();
-			ctx->results.push_back(res);
-			ctx->tool_call_ids.push_back(tc.id);
+			tc_data->results.push_back(res);
+			tc_data->tool_call_ids.push_back(tc.id);
 
 			WFGoTask *go_task = this->function_manager->async_execute(
 				tc.function.name,
@@ -297,98 +273,55 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 	}
 }
 
-void LLMClient::parallel_tool_calls_callback(const ParallelWork *pwork)
+void LLMClient::p_tool_calls_callback(const ParallelWork *pwork, SessionContext *ctx)
 {
-	ToolCallsContext *ctx = static_cast<ToolCallsContext *>(pwork->get_context());
+	ToolCallsData *tc_data = static_cast<ToolCallsData *>(pwork->get_context());
 //	if (!ctx)
 //		return;
 
 	// Add all tool call results to the request messages
-	for (size_t i = 0; i < ctx->results.size(); ++i)
+	for (size_t i = 0; i < tc_data->results.size(); ++i)
 	{
 		Message msg;
 		msg.role = "tool";
-		msg.tool_call_id = ctx->tool_call_ids[i];
-		if (ctx->results[i]->success)
-			msg.content = ctx->results[i]->result;
+		msg.tool_call_id = tc_data->tool_call_ids[i];
+		if (tc_data->results[i]->success)
+			msg.content = tc_data->results[i]->result;
 		else
-			msg.content = ctx->results[i]->error_message;
+			msg.content = tc_data->results[i]->error_message;
 		ctx->req->messages.push_back(std::move(msg));
 	}
 
-	delete ctx->resp;
-	ctx->resp = new ChatCompletionResponse();
+	ctx->resp->clear(); // clear resp for next round
 
-	auto extract_handler = std::bind(
-		&LLMClient::extract,
-		this,
-		std::placeholders::_1,
-		ctx->req,
-		ctx->resp,
-		ctx->extract
-	);
-
-	auto callback_handler = std::bind(
-		&LLMClient::callback,
-		this,
-		std::placeholders::_1,
-		ctx->req,
-		ctx->resp,
-		nullptr,
-		ctx->callback
-	);
-
-	auto *next = this->create(ctx->req, ctx->resp, ctx->extract, ctx->callback);
+	auto *next = this->create(ctx);
 	series_of(pwork)->push_back(next);
-	delete ctx;
+	delete tc_data;
 }
 
-void LLMClient::tool_calls_callback(WFGoTask *task)
+void LLMClient::tool_calls_callback(WFGoTask *task, SessionContext *ctx)
 {
-	ToolCallsContext *ctx = static_cast<ToolCallsContext*>(task->user_data);
+	ToolCallsData *tc_data = static_cast<ToolCallsData *>(task->user_data);
 //	if (!ctx || ctx->results.empty() || ctx->tool_call_ids.empty())
 //		return;
 
 	Message msg;
 	msg.role = "tool";
-	msg.tool_call_id = ctx->tool_call_ids[0];
-	if (ctx->results[0]->success)
-		msg.content = ctx->results[0]->result;
+	msg.tool_call_id = tc_data->tool_call_ids[0];
+	if (tc_data->results[0]->success)
+		msg.content = tc_data->results[0]->result;
 	else
-		msg.content = ctx->results[0]->error_message;
+		msg.content = tc_data->results[0]->error_message;
 	ctx->req->messages.push_back(std::move(msg));
 
-	delete ctx->resp;
-	ctx->resp = new ChatCompletionResponse();
+	ctx->resp->clear(); // clear resp for next round
 
-	auto extract_handler = std::bind(
-		&LLMClient::extract,
-		this,
-		std::placeholders::_1,
-		ctx->req,
-		ctx->resp,
-		ctx->extract
-	);
-
-	auto callback_handler = std::bind(
-		&LLMClient::callback,
-		this,
-		std::placeholders::_1,
-		ctx->req,
-		ctx->resp,
-		nullptr,
-		ctx->callback
-	);
-
-	auto *next = this->create(ctx->req, ctx->resp, ctx->extract, ctx->callback);
+	auto *next = this->create(ctx);
 	series_of(task)->push_back(next);
-	delete ctx;
+	delete tc_data;
 }
 
-void LLMClient::extract(WFHttpChunkedTask *task,
-						ChatCompletionRequest *req,
-						ChatCompletionResponse *resp,
-						llm_extract_t extract)
+void LLMClient::extract(WFHttpChunkedTask *task, SessionContext *ctx)
 {
 	protocol::HttpMessageChunk *msg_chunk = task->get_chunk();
 	const void *msg;
@@ -400,12 +333,12 @@ void LLMClient::extract(WFHttpChunkedTask *task,
 		return;
 	}
 
-	if (!req->stream)
+	if (!ctx->req->stream)
 	{
-		resp->append_buffer(static_cast<const char*>(msg), size);
+		ctx->resp->append_buffer(static_cast<const char*>(msg), size);
 
-		if (extract)
-			extract(task, req, nullptr); // not a chunk for no streaming
+		if (ctx->extract)
+			ctx->extract(task, ctx->req, nullptr); // not a chunk for no streaming
 	}
 	else
 	{
@@ -440,12 +373,12 @@ void LLMClient::extract(WFHttpChunkedTask *task,
 					if (!chunk.choices.empty() &&
 						!chunk.choices[0].delta.tool_calls.empty())
 					{
-						ret = append_tool_call_from_chunk(chunk, resp);
+						ret = append_tool_call_from_chunk(chunk, ctx->resp);
 						//TODO:
 					}
 
-					if (extract)
-						extract(task, req, &chunk);
+					if (ctx->extract)
+						ctx->extract(task, ctx->req, &chunk);
 				}
 				// TODO: else
 			}
@@ -462,5 +395,65 @@ bool LLMClient::register_function(const FunctionDefinition& def,
 								  FunctionHandler handler)
 {
 	return this->function_manager->register_function(def, std::move(handler));
+}
+
+// Synchronous chat completion implementation
+LLMClient::SyncResult LLMClient::chat_completion_sync(ChatCompletionRequest& request,
+													  ChatCompletionResponse& response)
+{
+	return this->chat_completion_sync(request, response, nullptr);
+}
+
+LLMClient::SyncResult LLMClient::chat_completion_sync(ChatCompletionRequest& request,
+													  ChatCompletionResponse& response,
+													  stream_callback_t stream_callback)
+{
+	SyncResult result;
+	WFFacilities::WaitGroup wg(1);
+
+	auto extract = [stream_callback](WFHttpChunkedTask *task,
+									 ChatCompletionRequest *req,
+									 ChatCompletionChunk *chunk)
+	{
+		if (stream_callback && chunk)
+			stream_callback(*chunk);
+	};
+
+	auto callback = [&result, &response, &wg](WFHttpChunkedTask *task,
+											  ChatCompletionRequest *req,
+											  ChatCompletionResponse *resp)
+	{
+		if (task->get_state() != WFT_STATE_SUCCESS)
+		 {
+			result.success = false;
+			result.error_message = "Task execution failed. State: " +
+				std::to_string(task->get_state()) +
+				", Error: " + std::to_string(task->get_error());
+		} else {
+			protocol::HttpResponse *http_resp = task->get_resp();
+			result.status_code = atoi(http_resp->get_status_code());
+			if (result.status_code != 200)
+			{
+				result.success = false;
+				result.error_message = "HTTP error: " +
+					std::string(http_resp->get_status_code()) +
+					" " + http_resp->get_reason_phrase();
+			} else {
+				result.success = true;
+				response = std::move(*resp);
+			}
+		}
+
+		wg.done();
+	};
+
+	SessionContext *ctx = new SessionContext(
+		&request, &response, std::move(extract), std::move(callback), false);
+
+	auto *task = this->create(ctx);
+	task->start();
+	wg.wait();
+
+	return result;
 }
 

@@ -76,6 +76,26 @@ ChatResponse& ChatResponse::operator=(ChatResponse&& move)
 	return *this;
 }
 
+
+void ChatResponse::clear()
+{
+	this->id.clear();
+	this->object.clear();
+	this->created = 0;
+	this->model.clear();
+	this->system_fingerprint.clear();
+
+	for (auto& choice : this->choices)
+		choice.clear();
+
+	this->choices.clear();
+
+	is_done = false;
+	// is_stream reset in each child class
+
+	this->usage.clear();
+}
+
 bool ChatResponse::parse_choice(const json_value_t *choice)
 {
 	const json_object_t *c_obj = json_value_object(choice);
@@ -112,39 +132,39 @@ bool ChatResponse::parse_usage(const json_value_t *usage_val)
 	if (!usage_val || json_value_type(usage_val) != JSON_VALUE_OBJECT)
 		return false;
 
-	const json_object_t *u_obj = json_value_object(usage_val);
-	if (!u_obj)
+	const json_object_t *obj = json_value_object(usage_val);
+	if (!obj)
 		return false;
 
-	const json_value_t *pt_val = json_object_find("prompt_tokens", u_obj);
-	if (pt_val && json_value_type(pt_val) == JSON_VALUE_NUMBER)
-		usage.prompt_tokens = json_value_number(pt_val);
+	const json_value_t *pt = json_object_find("prompt_tokens", obj);
+	if (pt && json_value_type(pt) == JSON_VALUE_NUMBER)
+		usage.prompt_tokens = json_value_number(pt);
 
-	const json_value_t *ct_val = json_object_find("completion_tokens", u_obj);
-	if (ct_val && json_value_type(ct_val) == JSON_VALUE_NUMBER)
-		usage.completion_tokens = json_value_number(ct_val);
+	const json_value_t *ct = json_object_find("completion_tokens", obj);
+	if (ct && json_value_type(ct) == JSON_VALUE_NUMBER)
+		usage.completion_tokens = json_value_number(ct);
 
-	const json_value_t *tt_val = json_object_find("total_tokens", u_obj);
-	if (tt_val && json_value_type(tt_val) == JSON_VALUE_NUMBER)
-		usage.total_tokens = json_value_number(tt_val);
+	const json_value_t *tt = json_object_find("total_tokens", obj);
+	if (tt && json_value_type(tt) == JSON_VALUE_NUMBER)
+		usage.total_tokens = json_value_number(tt);
 
-	const json_value_t *pcht_val = json_object_find("prompt_cache_hit_tokens", u_obj);
-	if (pcht_val && json_value_type(pcht_val) == JSON_VALUE_NUMBER)
-		usage.prompt_cache_hit_tokens = json_value_number(pcht_val);
+	const json_value_t *pcht = json_object_find("prompt_cache_hit_tokens", obj);
+	if (pcht && json_value_type(pcht) == JSON_VALUE_NUMBER)
+		usage.prompt_cache_hit_tokens = json_value_number(pcht);
 
-	const json_value_t *pcmt_val = json_object_find("prompt_cache_miss_tokens", u_obj);
-	if (pcmt_val && json_value_type(pcmt_val) == JSON_VALUE_NUMBER)
-		usage.prompt_cache_miss_tokens = json_value_number(pcmt_val);
+	const json_value_t *pcmt = json_object_find("prompt_cache_miss_tokens", obj);
+	if (pcmt && json_value_type(pcmt) == JSON_VALUE_NUMBER)
+		usage.prompt_cache_miss_tokens = json_value_number(pcmt);
 
-	const json_value_t *ctd_val = json_object_find("completion_tokens_details", u_obj);
-	if (ctd_val && json_value_type(ctd_val) == JSON_VALUE_OBJECT)
+	const json_value_t *ctd = json_object_find("completion_tokens_details", obj);
+	if (ctd && json_value_type(ctd) == JSON_VALUE_OBJECT)
 	{
-		const json_object_t *d_obj = json_value_object(ctd_val);
+		const json_object_t *d_obj = json_value_object(ctd);
 		if (d_obj)
 		{
-			const json_value_t *ct_val = json_object_find("cached_tokens", d_obj);
-			if (ct_val && json_value_type(ct_val) == JSON_VALUE_NUMBER)
-				usage.prompt_tokens_details.cached_tokens = json_value_number(ct_val);
+			const json_value_t *ct = json_object_find("cached_tokens", d_obj);
+			if (ct && json_value_type(ct) == JSON_VALUE_NUMBER)
+				usage.prompt_tokens_details.cached_tokens = json_value_number(ct);
 		}
 	}
 
@@ -412,6 +432,13 @@ ChatCompletionResponse::operator=(ChatCompletionResponse&& move)
 		usage = std::move(move.usage);
 	}
 	return *this;
+}
+
+void ChatCompletionResponse::clear()
+{
+	ChatResponse::clear();
+	this->buffer.clear();
+	this->is_stream = false;
 }
 
 bool ChatCompletionResponse::parse_message(const json_object_t *object,

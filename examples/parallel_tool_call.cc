@@ -206,9 +206,7 @@ int main(int argc, char *argv[])
 {
 	if (argc != 2)
 	{
-		fprintf(stderr, "USAGE: %s <api_key>\n"
-				"	 api_key - API KEY for LLM\n",
-				argv[0]);
+		fprintf(stderr, "USAGE: %s <api_key>\n", argv[0]);
 		exit(1);
 	}
 

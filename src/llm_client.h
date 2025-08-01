@@ -32,6 +32,24 @@ public:
 										llm_extract_t extract,
 										llm_callback_t callback);
 
+	///// Synchronous APIs /////
+	struct SyncResult
+	{
+		bool success;
+		int status_code;
+		std::string error_message;
+
+		SyncResult() : success(false), status_code(0) {}
+	};
+	using stream_callback_t = std::function<void(const ChatCompletionChunk&)>;
+
+	SyncResult chat_completion_sync(ChatCompletionRequest& request,
+									ChatCompletionResponse& response);
+
+	SyncResult chat_completion_sync(ChatCompletionRequest& request,
+									ChatCompletionResponse& response,
+									stream_callback_t stream_callback);
+
 public:
 	LLMClient();
 	LLMClient(const std::string& api_key);
@@ -43,32 +61,51 @@ public:
 	bool register_function(const FunctionDefinition& function,
 						   FunctionHandler handler);
 
-private:
-	WFHttpChunkedTask *create(ChatCompletionRequest *req,
-							  ChatCompletionResponse *resp,
-							  llm_extract_t extract,
-							  llm_callback_t callback);
+public:
+	class SessionContext
+	{
+	public:
+		ChatCompletionRequest *req;
+		ChatCompletionResponse *resp;
+		llm_extract_t extract;
+		llm_callback_t callback;
 
-	// TODO: optimize the parameter by context
-	void extract(WFHttpChunkedTask *task,
-				 ChatCompletionRequest *req,
-				 ChatCompletionResponse *resp,
-				 llm_extract_t extract);
+	public:
+		SessionContext(ChatCompletionRequest *req,
+				ChatCompletionResponse *resp,
+				llm_extract_t extract,
+				llm_callback_t callback,
+				bool flag) :
+			req(req), resp(resp),
+			extract(std::move(extract)),
+			callback(std::move(callback)),
+			flag(flag)
+		{
+		}
 
-	void callback(WFHttpChunkedTask *task,
-				  ChatCompletionRequest *req,
-				  ChatCompletionResponse *resp,
-				  llm_extract_t extract, // useless here
-				  llm_callback_t callback);
+		~SessionContext()
+		{
+			if (this->flag)
+			{
+				delete req;
+				delete resp;
+			}
+		}
 
-	void callback_with_tools(WFHttpChunkedTask *task,
-							 ChatCompletionRequest *req,
-							 ChatCompletionResponse *resp,
-							 llm_extract_t extract,
-							 llm_callback_t callback);
+	private:
+		bool flag; // whether ctx responsible for req and resp
+	};
 
-	void tool_calls_callback(WFGoTask *task);
-	void parallel_tool_calls_callback(const ParallelWork *pwork);
+	WFHttpChunkedTask *create(SessionContext *ctx);
+
+	void extract(WFHttpChunkedTask *task, SessionContext *ctx);
+
+	void callback(WFHttpChunkedTask *task, SessionContext *ctx);
+
+	void callback_with_tools(WFHttpChunkedTask *task, SessionContext *ctx);
+
+	void tool_calls_callback(WFGoTask *task, SessionContext *ctx);
+	void p_tool_calls_callback(const ParallelWork *pwork, SessionContext *ctx);
 
 private:
 	WFHttpChunkedClient client;
