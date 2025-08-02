@@ -87,7 +87,7 @@ struct Buffer
 	size_t capacity;
 
 	Buffer() : ptr(nullptr), size(0), capacity(0) { }
-	~Buffer() { if (ptr) free(ptr); }
+	~Buffer() { free(ptr); }
 
 	void clear()
 	{

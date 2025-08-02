@@ -1,5 +1,8 @@
 #include "chat_response.h"
 
+#define MAX(x, y)	((x) >= (y) ? (x) : (y))
+#define BUFFER_INIT_SIZE	1024
+
 namespace wfai {
 
 ToolCall parse_tool_call(const json_value_t *tool_call_val)
@@ -488,12 +491,13 @@ bool ChatCompletionResponse::parse_message(const json_object_t *object,
 
 bool ChatCompletionResponse::append_buffer(const void *data, size_t size)
 {
-    if (size == 0 || size > SIZE_MAX - buffer.size)
-		return false;
-
 	if (this->buffer.size + size > this->buffer.capacity)
 	{
-		size_t new_cap = (this->buffer.size + size) * 3 / 2;
+		size_t new_cap = MAX(this->buffer.size + this->buffer.size / 2,
+							 BUFFER_INIT_SIZE);
+		while (this->buffer.size + size > new_cap)
+			new_cap = new_cap + new_cap / 2;
+
 		void *new_buf = realloc(this->buffer.ptr, new_cap);
 		
 		if (!new_buf)
