@@ -212,10 +212,12 @@ private:
 class ChatCompletionChunk : public ChatResponse
 {
 public:
-	ChatCompletionChunk()
+	ChatCompletionChunk() :
+		is_last_chunk(false)
 	{
 		this->is_stream = true;
 	}
+
 	ChatCompletionChunk(ChatCompletionChunk&& move);
 	ChatCompletionChunk& operator=(ChatCompletionChunk&& move);
 
@@ -225,10 +227,15 @@ public:
 	{
 		ChatResponse::clear();
 		this->is_stream = true;
+		this->is_last_chunk = false;
 	}
+
+	bool last_chunk() const { return this->is_last_chunk; }
+	void set_last_chunk(bool flag) { this->is_last_chunk = flag; }
 
 private:
 	bool parse_message(const json_object_t *object, Choice& choice) override;
+	bool is_last_chunk;
 };
 
 } // namespace wfai

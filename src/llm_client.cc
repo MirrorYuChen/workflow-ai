@@ -17,6 +17,7 @@ static constexpr uint32_t default_streaming_tpft = 1 * 1000; // ms
 static constexpr uint32_t default_no_streaming_ttft = 500 * 1000; // ms
 static constexpr uint32_t default_no_streaming_tpft = 100 * 1000; // ms
 static constexpr int default_redirect_max = 3;
+static constexpr uint32_t default_max_tokens = 4096;
 
 // for tool calls execution, both single or parallel
 class ToolCallsData
@@ -30,7 +31,7 @@ public:
 	}
 
 public:
-	LLMClient::SessionContext *context;
+	SessionContext *context;
 	std::vector<FunctionResult *> results;
 	std::vector<std::string> tool_call_ids;
 };
@@ -56,6 +57,37 @@ bool append_tool_call_from_chunk(const ChatCompletionChunk& chunk,
 		chunk.choices[0].delta.tool_calls[0].function.arguments;
 
 	return true;
+}
+
+SessionContext::SessionContext(ChatCompletionRequest *req,
+							   ChatCompletionResponse *resp,
+							   LLMClient::llm_extract_t extract,
+							   LLMClient::llm_callback_t callback,
+							   bool flag) :
+	req(req), resp(resp),
+	extract(std::move(extract)), callback(std::move(callback)),
+	msgqueue(nullptr), flag(flag)
+{
+	if (req && req->stream)
+	{
+		size_t sz = req->max_tokens > 0 ?
+					req->max_tokens + 1 : default_max_tokens;
+		this->msgqueue = msgqueue_create(sz, 0);
+	}
+}
+
+SessionContext::~SessionContext()
+{
+	if (this->msgqueue)
+	{
+		msgqueue_destroy(this->msgqueue);
+	}
+
+	if (this->flag)
+	{
+		delete this->req;
+		delete this->resp;
+	}
 }
 
 LLMClient::LLMClient() :
@@ -379,6 +411,19 @@ void LLMClient::extract(WFHttpChunkedTask *task, SessionContext *ctx)
 
 					if (ctx->extract)
 						ctx->extract(task, ctx->req, &chunk);
+					else if (ctx->msgqueue) // as blocking api
+					{
+						// Set is_last_chunk flag for streaming chunks
+						if (!chunk.choices.empty() &&
+							!chunk.choices[0].finish_reason.empty())
+						{
+							chunk.set_last_chunk(true);
+						}
+
+						// Create a copy of the chunk for the message queue
+						ChatCompletionChunk *chunk_copy = new ChatCompletionChunk(std::move(chunk));
+						msgqueue_put(chunk_copy, ctx->msgqueue);
+					}
 				}
 				// TODO: else
 			}
@@ -397,34 +442,18 @@ bool LLMClient::register_function(const FunctionDefinition& def,
 	return this->function_manager->register_function(def, std::move(handler));
 }
 
-// Synchronous chat completion implementation
 LLMClient::SyncResult LLMClient::chat_completion_sync(ChatCompletionRequest& request,
 													  ChatCompletionResponse& response)
 {
-	return this->chat_completion_sync(request, response, nullptr);
-}
-
-LLMClient::SyncResult LLMClient::chat_completion_sync(ChatCompletionRequest& request,
-													  ChatCompletionResponse& response,
-													  stream_callback_t stream_callback)
-{
 	SyncResult result;
 	WFFacilities::WaitGroup wg(1);
-
-	auto extract = [stream_callback](WFHttpChunkedTask *task,
-									 ChatCompletionRequest *req,
-									 ChatCompletionChunk *chunk)
-	{
-		if (stream_callback && chunk)
-			stream_callback(*chunk);
-	};
 
 	auto callback = [&result, &response, &wg](WFHttpChunkedTask *task,
 											  ChatCompletionRequest *req,
 											  ChatCompletionResponse *resp)
 	{
 		if (task->get_state() != WFT_STATE_SUCCESS)
-		 {
+		{
 			result.success = false;
 			result.error_message = "Task execution failed. State: " +
 				std::to_string(task->get_state()) +
@@ -447,13 +476,33 @@ LLMClient::SyncResult LLMClient::chat_completion_sync(ChatCompletionRequest& req
 		wg.done();
 	};
 
-	SessionContext *ctx = new SessionContext(
-		&request, &response, std::move(extract), std::move(callback), false);
+	SessionContext *ctx;
+
+	// Create session context with message queue support for streaming
+	if (request.stream)
+	{
+		ctx = new SessionContext(&request, &response, nullptr, std::move(callback), false);
+	}
+	else
+	{
+		ctx = new SessionContext(&request, &response, nullptr, std::move(callback), false);
+	}
 
 	auto *task = this->create(ctx);
 	task->start();
 	wg.wait();
 
 	return result;
+}
+
+ChatCompletionChunk *SessionContext::get_chunk()
+{
+	if (!msgqueue)
+	{
+		return nullptr;
+	}
+
+	void *chunk_ptr = msgqueue_get(msgqueue);
+	return static_cast<ChatCompletionChunk*>(chunk_ptr);
 }
 

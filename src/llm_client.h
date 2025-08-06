@@ -6,12 +6,15 @@
 #include <string>
 #include "workflow/WFHttpChunkedClient.h"
 #include "workflow/Workflow.h"
+#include "workflow/msgqueue.h"
 #include "llm_util.h"
 #include "chat_response.h"
 #include "chat_request.h"
 #include "llm_function.h"
 
 namespace wfai {
+
+class SessionContext;
 
 class LLMClient
 {
@@ -45,11 +48,6 @@ public:
 
 	SyncResult chat_completion_sync(ChatCompletionRequest& request,
 									ChatCompletionResponse& response);
-
-	SyncResult chat_completion_sync(ChatCompletionRequest& request,
-									ChatCompletionResponse& response,
-									stream_callback_t stream_callback);
-
 public:
 	LLMClient();
 	LLMClient(const std::string& api_key);
@@ -62,40 +60,6 @@ public:
 						   FunctionHandler handler);
 
 public:
-	class SessionContext
-	{
-	public:
-		ChatCompletionRequest *req;
-		ChatCompletionResponse *resp;
-		llm_extract_t extract;
-		llm_callback_t callback;
-
-	public:
-		SessionContext(ChatCompletionRequest *req,
-				ChatCompletionResponse *resp,
-				llm_extract_t extract,
-				llm_callback_t callback,
-				bool flag) :
-			req(req), resp(resp),
-			extract(std::move(extract)),
-			callback(std::move(callback)),
-			flag(flag)
-		{
-		}
-
-		~SessionContext()
-		{
-			if (this->flag)
-			{
-				delete req;
-				delete resp;
-			}
-		}
-
-	private:
-		bool flag; // whether ctx responsible for req and resp
-	};
-
 	WFHttpChunkedTask *create(SessionContext *ctx);
 
 	void extract(WFHttpChunkedTask *task, SessionContext *ctx);
@@ -117,6 +81,30 @@ private:
 	int streaming_tpft;
 	int redirect_max;
 	FunctionManager *function_manager;
+};
+
+class SessionContext
+{
+public:
+	ChatCompletionRequest *req;
+	ChatCompletionResponse *resp;
+	LLMClient::llm_extract_t extract;
+	LLMClient::llm_callback_t callback;
+	msgqueue_t *msgqueue;
+
+public:
+	SessionContext(ChatCompletionRequest *req,
+				   ChatCompletionResponse *resp,
+				   LLMClient::llm_extract_t extract,
+				   LLMClient::llm_callback_t callback,
+				   bool flag);
+
+	~SessionContext();
+
+	ChatCompletionChunk *get_chunk(); // get chunk for blocking call
+
+private:
+	bool flag; // whether ctx responsible for req and resp
 };
 
 } // namespace llm_client
