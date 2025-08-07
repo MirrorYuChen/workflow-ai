@@ -76,33 +76,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	printf("2. Basic Chat in Streaming Mode:\n");
-	{
-		ChatCompletionRequest request;
-		request.model = "deepseek-chat";
-		request.stream = true;
-		request.messages.push_back({"user", "What is your tokenizer?"});
-		ChatCompletionResponse response;
-
-		auto stream_callback = [](const ChatCompletionChunk& chunk) {
-			if (!chunk.choices.empty() && !chunk.choices[0].delta.content.empty())
-			{
-				fprintf(stderr, "%s", chunk.choices[0].delta.content.c_str());
-			}
-		};
-
-		auto result = client.chat_completion_sync(request, response, stream_callback);
-
-		printf("\n");
-		if (result.success)
-		{
-			printf("✓ Request Success (Status Code : %d)\n\n", result.status_code);
-		} else {
-			printf("✗ Request Failed : %s\n\n", result.error_message.c_str());
-		}
-	}
-
-	printf("3. Chat With Tool Calls:\n");
+	printf("2. Chat With Tool Calls:\n");
 	{
 		ChatCompletionRequest request;
 		request.model = "deepseek-chat";

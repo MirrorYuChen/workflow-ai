@@ -17,7 +17,6 @@ static constexpr uint32_t default_streaming_tpft = 1 * 1000; // ms
 static constexpr uint32_t default_no_streaming_ttft = 500 * 1000; // ms
 static constexpr uint32_t default_no_streaming_tpft = 100 * 1000; // ms
 static constexpr int default_redirect_max = 3;
-static constexpr uint32_t default_max_tokens = 4096;
 
 // for tool calls execution, both single or parallel
 class ToolCallsData
@@ -68,20 +67,14 @@ SessionContext::SessionContext(ChatCompletionRequest *req,
 	extract(std::move(extract)), callback(std::move(callback)),
 	msgqueue(nullptr), flag(flag)
 {
-	if (req && req->stream)
-	{
-		size_t sz = req->max_tokens > 0 ?
-					req->max_tokens + 1 : default_max_tokens;
-		this->msgqueue = msgqueue_create(sz, 0);
-	}
+	if (req->stream)
+		this->msgqueue = msgqueue_create(req->max_tokens + 1, 0);
 }
 
 SessionContext::~SessionContext()
 {
 	if (this->msgqueue)
-	{
 		msgqueue_destroy(this->msgqueue);
-	}
 
 	if (this->flag)
 	{
@@ -413,16 +406,15 @@ void LLMClient::extract(WFHttpChunkedTask *task, SessionContext *ctx)
 						ctx->extract(task, ctx->req, &chunk);
 					else if (ctx->msgqueue) // as blocking api
 					{
-						// Set is_last_chunk flag for streaming chunks
 						if (!chunk.choices.empty() &&
 							!chunk.choices[0].finish_reason.empty())
 						{
 							chunk.set_last_chunk(true);
 						}
 
-						// Create a copy of the chunk for the message queue
-						ChatCompletionChunk *chunk_copy = new ChatCompletionChunk(std::move(chunk));
-						msgqueue_put(chunk_copy, ctx->msgqueue);
+						ChatCompletionChunk *msg =
+							new ChatCompletionChunk(std::move(chunk));
+						msgqueue_put(msg, ctx->msgqueue);
 					}
 				}
 				// TODO: else
@@ -476,17 +468,9 @@ LLMClient::SyncResult LLMClient::chat_completion_sync(ChatCompletionRequest& req
 		wg.done();
 	};
 
-	SessionContext *ctx;
-
-	// Create session context with message queue support for streaming
-	if (request.stream)
-	{
-		ctx = new SessionContext(&request, &response, nullptr, std::move(callback), false);
-	}
-	else
-	{
-		ctx = new SessionContext(&request, &response, nullptr, std::move(callback), false);
-	}
+	SessionContext *ctx = new SessionContext(&request, &response,
+											 nullptr, std::move(callback),
+											 false);
 
 	auto *task = this->create(ctx);
 	task->start();
