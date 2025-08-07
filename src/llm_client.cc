@@ -298,11 +298,10 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 	}
 }
 
-void LLMClient::p_tool_calls_callback(const ParallelWork *pwork, SessionContext *ctx)
+void LLMClient::p_tool_calls_callback(const ParallelWork *pwork,
+									  SessionContext *ctx)
 {
 	ToolCallsData *tc_data = static_cast<ToolCallsData *>(pwork->get_context());
-//	if (!ctx)
-//		return;
 
 	// Add all tool call results to the request messages
 	for (size_t i = 0; i < tc_data->results.size(); ++i)
@@ -403,7 +402,9 @@ void LLMClient::extract(WFHttpChunkedTask *task, SessionContext *ctx)
 					}
 
 					if (ctx->extract)
+					{
 						ctx->extract(task, ctx->req, &chunk);
+					}
 					else if (ctx->msgqueue) // as blocking api
 					{
 						if (!chunk.choices.empty() &&
@@ -434,47 +435,67 @@ bool LLMClient::register_function(const FunctionDefinition& def,
 	return this->function_manager->register_function(def, std::move(handler));
 }
 
+void LLMClient::sync_callback(WFHttpChunkedTask *task,
+						 ChatCompletionRequest *req, // useless
+						 ChatCompletionResponse *resp, // from llm_callback_t
+						 WFPromise<SyncResult> *promise)
+{
+	SyncResult result;
+
+	if (task->get_state() != WFT_STATE_SUCCESS)
+	{
+		result.success = false;
+		result.error_message = "Task execution failed. State: " +
+			std::to_string(task->get_state()) +
+			", Error: " + std::to_string(task->get_error());
+	}
+	else
+	{
+		protocol::HttpResponse *http_resp = task->get_resp();
+		result.status_code = atoi(http_resp->get_status_code());
+		if (result.status_code != 200)
+		{
+			result.success = false;
+			result.error_message = "HTTP error: " +
+				std::string(http_resp->get_status_code()) +
+				" " + http_resp->get_reason_phrase();
+		}
+		else
+		{
+			result.success = true;
+			result.response = std::move(*resp); // must move if need resp after callback
+		}
+	}
+
+	promise->set_value(std::move(result));
+	delete promise;
+}
+
 LLMClient::SyncResult LLMClient::chat_completion_sync(ChatCompletionRequest& request,
 													  ChatCompletionResponse& response)
 {
-	SyncResult result;
-	WFFacilities::WaitGroup wg(1);
+	auto *promise = new WFPromise<SyncResult>();
+	auto future = promise->get_future();
 
-	auto callback = [&result, &response, &wg](WFHttpChunkedTask *task,
-											  ChatCompletionRequest *req,
-											  ChatCompletionResponse *resp)
-	{
-		if (task->get_state() != WFT_STATE_SUCCESS)
-		{
-			result.success = false;
-			result.error_message = "Task execution failed. State: " +
-				std::to_string(task->get_state()) +
-				", Error: " + std::to_string(task->get_error());
-		} else {
-			protocol::HttpResponse *http_resp = task->get_resp();
-			result.status_code = atoi(http_resp->get_status_code());
-			if (result.status_code != 200)
-			{
-				result.success = false;
-				result.error_message = "HTTP error: " +
-					std::string(http_resp->get_status_code()) +
-					" " + http_resp->get_reason_phrase();
-			} else {
-				result.success = true;
-				response = std::move(*resp);
-			}
-		}
-
-		wg.done();
-	};
+	auto cb_for_sync = std::bind(
+		&LLMClient::sync_callback,
+		this,
+		std::placeholders::_1, // the task from llm_callback_t
+		std::placeholders::_2,
+		std::placeholders::_3,
+		promise
+	);
 
 	SessionContext *ctx = new SessionContext(&request, &response,
-											 nullptr, std::move(callback),
+											 nullptr, std::move(cb_for_sync),
 											 false);
 
 	auto *task = this->create(ctx);
 	task->start();
-	wg.wait();
+	SyncResult result = future.get();
+
+	if (result.success)
+		response = std::move(result.response);
 
 	return result;
 }
@@ -482,9 +503,7 @@ LLMClient::SyncResult LLMClient::chat_completion_sync(ChatCompletionRequest& req
 ChatCompletionChunk *SessionContext::get_chunk()
 {
 	if (!msgqueue)
-	{
 		return nullptr;
-	}
 
 	void *chunk_ptr = msgqueue_get(msgqueue);
 	return static_cast<ChatCompletionChunk*>(chunk_ptr);

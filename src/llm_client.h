@@ -5,6 +5,7 @@
 #include <string.h>
 #include <string>
 #include "workflow/WFHttpChunkedClient.h"
+#include "workflow/WFFuture.h"
 #include "workflow/Workflow.h"
 #include "workflow/msgqueue.h"
 #include "llm_util.h"
@@ -41,10 +42,10 @@ public:
 		bool success;
 		int status_code;
 		std::string error_message;
+		ChatCompletionResponse response;
 
 		SyncResult() : success(false), status_code(0) {}
 	};
-	using stream_callback_t = std::function<void(const ChatCompletionChunk&)>;
 
 	SyncResult chat_completion_sync(ChatCompletionRequest& request,
 									ChatCompletionResponse& response);
@@ -71,6 +72,10 @@ public:
 	void tool_calls_callback(WFGoTask *task, SessionContext *ctx);
 	void p_tool_calls_callback(const ParallelWork *pwork, SessionContext *ctx);
 
+	void sync_callback(WFHttpChunkedTask *task,
+					   ChatCompletionRequest *req,
+					   ChatCompletionResponse *resp,
+					   WFPromise<SyncResult> *promise);
 private:
 	WFHttpChunkedClient client;
 	std::string api_key;
