@@ -1,17 +1,20 @@
-# Workflow AI - C++ Networking and Computing Task for LLMs
+<div align="center">
 
-As modern LLM applications increasingly require not just API requests but also complex tool calls and agent orchestration, efficiently organizing network and compute tasks presents a critical challenge for C++ programs. 
+# Workflow AI<br>C++ Task Chain and Graph for LLMs
 
-**Workflow AI** provides a high-performance C++ library for interacting with Large Language Models (LLMs) built on [C++ Workflow](https://github.com/sogou/workflow) and supports 💬 `basic chatbot` , 🔧`function calling` and ⚡`parallel execution` so far.
+</div>
 
-By abstracting the complexity of mixed I/O and compute workflows, we make LLM integration easy and efficient for all C++ applications.
+**Workflow AI** provides a high-performance C++ library functionally similar to LangChain and LangGraph by interacting with Large Language Models (LLMs) and extends the task serial/parallel orchestration capabilities in  **[C++ Workflow](https://github.com/sogou/workflow)**.
+
+Modern LLMs applications increasingly require not just **API requests** but also complex **tool calls** and **agent orchestration**. By abstracting the complexity of mixed I/O and compute workflows, this library makes LLMs integration easy and efficient for all C++ applications.
 
 ## 1. Features
 
+- 💬 **Chatbot**: Basic demo which can be use directly as a chatbot
 - 🚀 **High Performance**: Built on C++ Workflow for efficient async non-blocking I/O and Computation
 - 📒 **Memory**: Simple memory module for multi round sessions
 - 🔧 **Function Calling**: Native support for LLM function/tool calling
-- ⚡ **Parallel Tool Execution**: Execute multiple tool calls in parallel asynchronously
+- ⚡ **Parallel Graph Execution**: Execute multiple tool calls in parallel asynchronously
 - 🌊 **Streaming Support**: Real-time streaming responses
 - 🛠️ **Client / Proxy**: Create task as Client or Proxy. Server is comming soon
 
@@ -46,7 +49,8 @@ This is the very beginning of a multi-layer LLM interaction framework. Here's th
 
 ### 2.2 API Modes
 - [x] Asynchronous Task API (Done)
-- [ ] Synchronous API (In progress)
+- [x] Synchronous API (2025.August.01)
+- [ ] Semi-Sync API (In Progress)
 
 ### 2.3 Multi-modal Support
 - [x] Text-to-text (Done)
@@ -97,9 +101,6 @@ bazel build ...
 
 # Run basic DeepSeek chatbot
 bazel run :deepseek_chatbot -- <your_api_key>
-
-# Run parallel tool call example  
-bazel run :parallel_tool_call -- <your_api_key>
 ```
 
 ### 3.3 Build with CMake
@@ -135,9 +136,7 @@ This exmaple shows the basic steps to chat with LLMs.
   🧑‍💻 callback()
 ```
 
-🤖
-
-**Step-1** : Make `client` and `request`. Then create and start a `task` like we usually do in C++ Workflow.
+🤖 Code Example
 
 ```cpp
 #include "llm_client.h"
@@ -147,50 +146,18 @@ int main(int argc, char *argv[])
 {
     LLMClient client("YOUR_API_KEY"); // build a client by `api_key`. support `base_url` and DeepSeek is default
 
-    ChatCompletionRequest request; // fill the request for LLMs
-    request.model = "deepseek-reasoner";
-    request.stream = true;
+    ChatCompletionRequest request;
     request.messages.push_back({"user", "hi"});
 
-    auto *task = client.create_chat_task(request, extract, callback); // create a WFHttpChunkedTask
+	ChatCompletionResponse response;
+    auto result = client.chat_completion_sync(request, response);
 
-    task->start();
-    wait_group.wait(); // need to pause the main thread since the task is asynchronous
+	if (result.success)
+		printf("%s\n", response.choices[0].message.content.c_str());
+	else
+		printf("Request Failed : %s\n", result.error_message.c_str());
+
     return 0;
-}
-```
-
-**Step-2** : Implement `extract()` for streaming.
-
- If **request.stream = false**, you may ignore this.  `extract()` will be called every time we get a chunk data from LLMs.  
-
-- task : the task we created just now. We can get user_data or it's SeriesWork.
-- request : the request we created. It is copied inside so don't worry about the life cycle.
-- chunk : the delta response for each token. 
-
-```cpp
-void extract(WFHttpChunkedTask *task, ChatCompletionRequest *request, ChatCompletionChunk *chunk)
-{
-    if (!chunk->choices[0].delta.reasoning_content.empty())
-        fprintf(stderr, "reason content=%s\n", chunk->choices[0].delta.reasoning_content.c_str());
-    if (!chunk->choices[0].delta.content.empty())
-        fprintf(stderr, "content=%s\n", chunk->choices[0].delta.content.c_str());
-}
-```
-
-**Step-3** : Implement `callback()`. 
-
-Every task will get to callback both for steaming or non streaming mode.
-
-- response : the complete message for this task
-
-```cpp
-void callback(WFHttpChunkedTask *task, ChatCompletionRequest *request, ChatCompletionResponse *response)
-{
-    // ... check state and response
-    if (request->model == "deepseek-reasoner")
-        fprintf(stderr, "\n<think>\n%s\n<\\think>\n", response->choices[0].message.reasoning_content.c_str());
-    fprintf(stderr, "\n%s\n", response->choices[0].message.content.c_str());
 }
 ```
 
@@ -198,7 +165,7 @@ void callback(WFHttpChunkedTask *task, ChatCompletionRequest *request, ChatCompl
 
 This example shows how to use function call as tools.
 
-The following task flow seems complecated but it just show the internal architecture. The usage for users consists of 4 steps only.
+The following task flow seems complecated but it just show the internal architecture.
 
 ```
 👩‍💻 preparation: register functions
@@ -231,7 +198,7 @@ create WFGoTask for local function computing
   👩‍💻 callback()
 ```
 
-🤖
+🤖 Code Example. Here are 3 steps.
 
 **Step-1**  : Define our `function`. 
 
@@ -259,17 +226,19 @@ int main()
     LLMClient client("your_api_key");
     FunctionManager func_mgr;
     client.set_function_manager(&func_mgr);
+
     // Register function
     FunctionDefinition weather_func = {
         .name = "get_weather",
         .description = "Get current weather information"
     };
     func_mgr.register_function(weather_func, get_current_weather);
-    // ...
+
+    ...
 }
 ```
 
-**Step-3** : Start a `task` with tools.   
+**Step-3** : Start a request with tools.  
 
 As long as we have function in manager and set `request.tool_choice`, LLMs will tell us how to use corresponding tools and this library will help us execute the tools automatically. Then the library will give the response to LLMs and let it summarise by the function results.
 
@@ -280,23 +249,20 @@ As long as we have function in manager and set `request.tool_choice`, LLMs will 
     request.messages.push_back({"user", "What's the weather like?"});
     request.tool_choice = "auto"; // set `auto` or `required` to enable tools using
 
-    auto *task = client.create_chat_task(request, extract, callback);
-    task->start();
-    // ...
+	ChatCompletionResponse response;
+	auto result = client.chat_completion_sync(request, response);
+
+	if (result.success)
+		printf("%s\n", response.choices[0].message.content.c_str());
+	// "Shenzhen has sunny weather today, with a temperature of 25°C and pleasant weather."
 }
-```
-
-**Step-4** : Implement `extract()` and `callback()`.
-
-```cpp
-void extract(WFHttpChunkedTask *task, ChatCompletionRequest *request, ChatCompletionChunk *chunk);
-
-void callback(WFHttpChunkedTask *task, ChatCompletionRequest *request, ChatCompletionResponse *response);
 ```
 
 ### 4.3 Parallel Tool Execution
 
 The library automatically detects when multiple tool calls are returned by the LLM and executes them in parallel using Workflow's `ParallelWork`:
+
+In [example/parallel_tool_call.cc](./examples/parallel_tool_call.cc), we can make request like this:
 
 ```cpp
 // When LLM returns multiple tool calls, they execute in parallel
@@ -304,6 +270,22 @@ request.messages.push_back({"user", "Tell me the weather in Beijing and Shenzhen
 ```
 
 This will execute weather queries for both cities and time query simultaneously, significantly improving response time.
+
+```
+./bazel-bin/parallel_tool_call <API_KEY>
+registered weather and time functions successfully.
+Starting parallel tool calls test...
+function calling...get_current_weather()
+function calling...get_current_time()
+parameters: {"location": "Beijing"}
+function calling...get_current_weather()
+parameters: {"location": "Shenzhen"}
+parameters: {}
+Response status: 200
+
+Response Content:
+The current temperature in Beijing is 30°C and in Shenzhen it is 28°C. The time now is 10:05 PM on Friday, August 8, 2025.
+```
 
 ## 5. API Reference
 
@@ -318,7 +300,8 @@ This will execute weather queries for both cities and time query simultaneously,
 
 | Example | Description |
 |---------|-------------|
-| [demo.cc](./examples/demo.cc) | Most simplest demo |
+| [sync_demo.cc](./examples/sync_demo.cc) | Most simplest demo in synchronous API |
+| [demo.cc](./examples/demo.cc) | Asynchronous API which can create task for Graph |
 | [deepseek_chatbot.cc](./examples/deepseek_chatbot.cc) | DeepSeek chatbot implementation for multi round session with memory |
 | [tool_call.cc](./examples/tool_call.cc) | Basic function calling with single tool |
 | [parallel_tool_call.cc](./examples/parallel_tool_call.cc) | Demonstrates parallel execution of multiple tools |
