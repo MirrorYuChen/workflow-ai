@@ -16,6 +16,17 @@
 namespace wfai {
 
 class SessionContext;
+class AsyncResult;
+
+struct SyncResult
+{
+	bool success;
+	int status_code;
+	std::string error_message;
+	ChatCompletionResponse response;
+
+	SyncResult() : success(false), status_code(0) {}
+};
 
 class LLMClient
 {
@@ -37,18 +48,12 @@ public:
 										llm_callback_t callback);
 
 	///// Synchronous APIs /////
-	struct SyncResult
-	{
-		bool success;
-		int status_code;
-		std::string error_message;
-		ChatCompletionResponse response;
-
-		SyncResult() : success(false), status_code(0) {}
-	};
-
 	SyncResult chat_completion_sync(ChatCompletionRequest& request,
 									ChatCompletionResponse& response);
+
+	///// Asynchronous but blocking APIs /////
+	AsyncResult chat_completion_async(ChatCompletionRequest& request);
+
 public:
 	LLMClient();
 	LLMClient(const std::string& api_key);
@@ -76,6 +81,11 @@ public:
 					   ChatCompletionRequest *req,
 					   ChatCompletionResponse *resp,
 					   WFPromise<SyncResult> *promise);
+
+	void async_callback(WFHttpChunkedTask *task,
+						ChatCompletionRequest *req,
+						ChatCompletionResponse *resp,
+						AsyncResult *result);
 private:
 	WFHttpChunkedClient client;
 	std::string api_key;
@@ -88,6 +98,38 @@ private:
 	FunctionManager *function_manager;
 };
 
+class AsyncResult
+{
+public:
+	AsyncResult();
+	~AsyncResult();
+
+	AsyncResult(AsyncResult&& move);
+	AsyncResult& operator=(AsyncResult&& move);
+
+	// delete copy constructor and assignment
+	AsyncResult(const AsyncResult&) = delete;
+	AsyncResult& operator=(const AsyncResult&) = delete;
+
+	ChatCompletionChunk *get_chunk();
+	ChatCompletionResponse *get_response();
+
+private:
+	void clear();
+
+private:
+	bool success;
+	int status_code;
+	std::string error_message;
+	ChatCompletionChunk *current_chunk;
+	ChatCompletionResponse *response;
+	WFPromise<ChatCompletionResponse *> *promise;
+	WFFuture<ChatCompletionResponse *> future;
+	msgqueue_t *msgqueue;
+
+	friend class LLMClient; // temporarily
+};
+
 class SessionContext
 {
 public:
@@ -95,7 +137,9 @@ public:
 	ChatCompletionResponse *resp;
 	LLMClient::llm_extract_t extract;
 	LLMClient::llm_callback_t callback;
-	msgqueue_t *msgqueue;
+
+	// for async
+	AsyncResult *async_result;
 
 public:
 	SessionContext(ChatCompletionRequest *req,
@@ -106,7 +150,7 @@ public:
 
 	~SessionContext();
 
-	ChatCompletionChunk *get_chunk(); // get chunk for blocking call
+	void set_callback(LLMClient::llm_callback_t cb);
 
 private:
 	bool flag; // whether ctx responsible for req and resp

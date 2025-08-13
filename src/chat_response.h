@@ -104,6 +104,9 @@ struct Buffer
 class ChatResponse
 {
 public:
+	int state;
+
+public:
 	std::string id;					// 该对话的唯一标识符
 	std::string object;				// 对象类型
 	uint32_t created;				// unix timestamp
@@ -150,13 +153,12 @@ public:
 	};
 
 	std::vector<Choice> choices;
-
 	bool is_stream;					// 是否为流式响应
-	bool is_done;					// 是否完成
+	bool is_done;					// for stream : is last chunk
 	Usage usage;					// 该对话补全请求的用量信息
 
 public:
-	ChatResponse() : created(0), is_done(false) { }
+	ChatResponse() : state(RESPONSE_UNDEFINED), created(0), is_done(false) { }
 
 	ChatResponse(ChatResponse&& move); 
 	ChatResponse& operator=(ChatResponse&& move);
@@ -212,8 +214,7 @@ private:
 class ChatCompletionChunk : public ChatResponse
 {
 public:
-	ChatCompletionChunk() :
-		is_last_chunk(false)
+	ChatCompletionChunk()
 	{
 		this->is_stream = true;
 	}
@@ -227,15 +228,13 @@ public:
 	{
 		ChatResponse::clear();
 		this->is_stream = true;
-		this->is_last_chunk = false;
 	}
 
-	bool last_chunk() const { return this->is_last_chunk; }
-	void set_last_chunk(bool flag) { this->is_last_chunk = flag; }
+	bool last_chunk() const { return this->is_done; }
+	void set_last_chunk(bool flag) { this->is_done = flag; }
 
 private:
 	bool parse_message(const json_object_t *object, Choice& choice) override;
-	bool is_last_chunk;
 };
 
 } // namespace wfai

@@ -50,6 +50,7 @@ ChatResponse::ChatResponse(ChatResponse&& move)
 	usage = std::move(move.usage);
 	is_stream = move.is_stream;
 	is_done = move.is_done;
+	state = move.state;
 /*
 	is_first_chunk = move.is_first_chunk;
 	is_last_chunk = move.is_last_chunk;
@@ -70,6 +71,7 @@ ChatResponse& ChatResponse::operator=(ChatResponse&& move)
 		usage = std::move(move.usage);
 		is_stream = move.is_stream;
 		is_done = move.is_done;
+		state = move.state;
 /*
 		is_first_chunk = move.is_first_chunk;
 		is_last_chunk = move.is_last_chunk;
@@ -78,7 +80,6 @@ ChatResponse& ChatResponse::operator=(ChatResponse&& move)
 	}
 	return *this;
 }
-
 
 void ChatResponse::clear()
 {
@@ -93,7 +94,7 @@ void ChatResponse::clear()
 
 	this->choices.clear();
 
-	is_done = false;
+	this->state = RESPONSE_UNDEFINED;
 	// is_stream reset in each child class
 
 	this->usage.clear();
@@ -132,7 +133,7 @@ bool ChatResponse::parse_choice(const json_value_t *choice)
 
 bool ChatResponse::parse_usage(const json_value_t *usage_val)
 {
-	if (!usage_val || json_value_type(usage_val) != JSON_VALUE_OBJECT)
+	if (json_value_type(usage_val) != JSON_VALUE_OBJECT)
 		return false;
 
 	const json_object_t *obj = json_value_object(usage_val);
@@ -278,7 +279,7 @@ bool ChatResponse::parse_json(const char *msg, size_t size)
 	char *json_buf = (char *)malloc(size + 1);
 	if (!json_buf)
 	{
-		perror("malloc");
+		this->state = RESPONSE_FRAMEWORK_ERROR;
 		return false;
 	}
 
@@ -290,7 +291,7 @@ bool ChatResponse::parse_json(const char *msg, size_t size)
 
 	if (!root || json_value_type(root) != JSON_VALUE_OBJECT)
 	{
-		// TODO: set as error
+		this->state = RESPONSE_PARSE_ERROR;
 		return false;
 	}
 
@@ -319,7 +320,7 @@ bool ChatResponse::parse_json(const char *msg, size_t size)
 	const json_value_t *choices_val = json_object_find("choices", obj);
 	if (!choices_val || json_value_type(choices_val) != JSON_VALUE_ARRAY)
 	{
-//		fprintf(stderr, "Error: No necessary object 'choices'\n");
+		this->state = RESPONSE_CONTENT_ERROR;
 		json_value_destroy(root);
 		return false;
 	}
@@ -335,7 +336,7 @@ bool ChatResponse::parse_json(const char *msg, size_t size)
 
 		if (!parse_choice(choice))
 		{
-			fprintf(stderr, "Error: Invalid choice data\n");
+			this->state = RESPONSE_CONTENT_ERROR;
 			ret = false;
 			break;
 		}
@@ -344,14 +345,16 @@ bool ChatResponse::parse_json(const char *msg, size_t size)
 	const json_value_t *usage_val = json_object_find("usage", obj);
 	if (usage_val)
 	{
-		this->parse_usage(usage_val);
-		// TODO:
-		// check ret as error
-		// is_last_chunk = true;
+		if (!this->parse_usage(usage_val))
+			this->state = RESPONSE_CONTENT_ERROR;
+		this->is_done = true;
 		// stream_content.last_chunk = std::string(msg, size);
 	}
 
 	json_value_destroy(root);
+	if (ret)
+		this->state = RESPONSE_SUCCESS;
+
 	return ret;
 }
 
@@ -442,6 +445,7 @@ void ChatCompletionResponse::clear()
 	ChatResponse::clear();
 	this->buffer.clear();
 	this->is_stream = false;
+	this->is_done = false;
 }
 
 bool ChatCompletionResponse::parse_message(const json_object_t *object,

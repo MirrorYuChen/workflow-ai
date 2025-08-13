@@ -10,6 +10,20 @@
 
 namespace wfai {
 
+///// for response and sync result /////
+
+enum
+{
+	RESPONSE_UNDEFINED			= -1,
+	RESPONSE_SUCCESS			=  0,
+
+	RESPONSE_FRAMEWORK_ERROR	=  1,
+	RESPONSE_NETWORK_ERROR		=  2, // http 4xx/5xx
+
+	RESPONSE_PARSE_ERROR		=  11, // parse json error
+	RESPONSE_CONTENT_ERROR		=  12, // lack of some content
+};
+
 ///// for request and response /////
 
 struct ToolCall
