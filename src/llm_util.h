@@ -7,8 +7,21 @@
 #include <map>
 #include <functional>
 #include "workflow/json_parser.h"
+#include "workflow/WFHttpChunkedClient.h"
 
 namespace wfai {
+
+class ChatCompletionRequest;
+class ChatCompletionChunk;
+class ChatCompletionResponse;
+
+using llm_extract_t = std::function<void(WFHttpChunkedTask *,
+										 ChatCompletionRequest *,
+										 ChatCompletionChunk *)>;
+
+using llm_callback_t = std::function<void(WFHttpChunkedTask *,
+										  ChatCompletionRequest *,
+										  ChatCompletionResponse *)>;
 
 ///// for response and sync result /////
 

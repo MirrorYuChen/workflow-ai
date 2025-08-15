@@ -6,7 +6,9 @@
 #include "workflow/WFHttpChunkedClient.h"
 #include "workflow/Workflow.h"
 #include "workflow/WFFacilities.h"
+#include "workflow/WFFuture.h"
 #include "llm_client.h"
+#include "llm_session.h"
 
 using namespace wfai;
 
@@ -56,31 +58,6 @@ bool append_tool_call_from_chunk(const ChatCompletionChunk& chunk,
 		chunk.choices[0].delta.tool_calls[0].function.arguments;
 
 	return true;
-}
-
-SessionContext::SessionContext(ChatCompletionRequest *req,
-							   ChatCompletionResponse *resp,
-							   LLMClient::llm_extract_t extract,
-							   LLMClient::llm_callback_t callback,
-							   bool flag) :
-	req(req), resp(resp),
-	extract(std::move(extract)), callback(std::move(callback)),
-	async_result(nullptr), flag(flag)
-{
-}
-
-SessionContext::~SessionContext()
-{
-	if (this->flag)
-	{
-		delete this->req;
-		delete this->resp;
-	}
-}
-
-void SessionContext::set_callback(LLMClient::llm_callback_t cb)
-{
-	this->callback = std::move(cb);
 }
 
 LLMClient::LLMClient() :
@@ -406,7 +383,7 @@ void LLMClient::extract(WFHttpChunkedTask *task, SessionContext *ctx)
 					{
 						ctx->extract(task, ctx->req, &chunk);
 					}
-					else if (ctx->async_result && ctx->async_result->msgqueue)
+					else if (ctx->is_async_streaming())
 					{
 						// created by async api and streaming mode
 						if (!chunk.choices.empty() &&
@@ -418,10 +395,10 @@ void LLMClient::extract(WFHttpChunkedTask *task, SessionContext *ctx)
 						ChatCompletionChunk *msg =
 							new ChatCompletionChunk(std::move(chunk));
 
-						msgqueue_put(msg, ctx->async_result->msgqueue);
+						ctx->async_msgqueue_put(msg);
 
 						if (msg->last_chunk() == true)
-							msgqueue_set_nonblock(ctx->async_result->msgqueue);
+							ctx->async_msgqueue_set_nonblock();
 					}
 				}
 			}
@@ -505,150 +482,56 @@ SyncResult LLMClient::chat_completion_sync(ChatCompletionRequest& request,
 	return result;
 }
 
-
-AsyncResult::AsyncResult() :
-	success(false),
-	status_code(0),
-	current_chunk(nullptr),
-	response(nullptr),
-	promise(nullptr),
-	msgqueue(nullptr)
-{
-}
-
-AsyncResult::AsyncResult(AsyncResult&& move) :
-	success(move.success),
-	status_code(move.status_code),
-	error_message(std::move(move.error_message)),
-	current_chunk(move.current_chunk),
-	response(move.response),
-	promise(move.promise),
-	future(std::move(move.future)),
-	msgqueue(move.msgqueue)
-{
-	move.success = false;
-	move.status_code = 0;
-	move.current_chunk = nullptr;
-	move.response = nullptr;
-	move.promise = nullptr;
-	move.msgqueue = nullptr;
-}
-
-AsyncResult& AsyncResult::operator=(AsyncResult&& move)
-{
-	if (this != &move)
-	{
-		// Clean up current resources
-		this->clear();
-
-		// Move from move
-		success = move.success;
-		status_code = move.status_code;
-		error_message = std::move(move.error_message);
-		current_chunk = move.current_chunk;
-		response = move.response;
-		future = std::move(move.future);
-		promise = move.promise;
-		msgqueue = move.msgqueue;
-
-		// Reset move
-		move.success = false;
-		move.status_code = 0;
-		move.current_chunk = nullptr;
-		move.response = nullptr;
-		move.promise = nullptr;
-		move.msgqueue = nullptr;
-	}
-	return *this;
-}
-
-AsyncResult::~AsyncResult()
-{
-	this->clear();
-}
-
-void AsyncResult::clear()
-{
-	if (this->current_chunk)
-		delete this->current_chunk;
-
-	if (this->response)
-		delete this->response;
-
-	if (this->msgqueue)
-	{
-		msgqueue_set_nonblock(this->msgqueue);
-		while (true)
-		{
-			ChatCompletionChunk *chunk;
-			chunk = static_cast<ChatCompletionChunk *>(msgqueue_get(this->msgqueue));
-			if (chunk == nullptr)
-				break;
-			delete chunk;
-		}
-
-		msgqueue_destroy(this->msgqueue);
-	}
-}
-
-ChatCompletionChunk *AsyncResult::get_chunk()
-{
-	if (!this->msgqueue) // non streaming
-		return nullptr;
-
-	if (this->current_chunk)
-		delete this->current_chunk;
-
-	this->current_chunk =
-		static_cast<ChatCompletionChunk *>(msgqueue_get(this->msgqueue));
-
-	return this->current_chunk;
-}
-
 void LLMClient::async_callback(WFHttpChunkedTask *task,
 							   ChatCompletionRequest *req,
 							   ChatCompletionResponse *resp,
-							   AsyncResult *result)
+							   SessionContext *ctx)
 {
+	AsyncResultPtr *result = ctx->get_async_result();
+
 	if (task->get_state() != WFT_STATE_SUCCESS)
 	{
 		resp->state = RESPONSE_FRAMEWORK_ERROR;
-		result->success = false;
-		result->error_message = "Task execution failed. State: " +
+		result->set_success(false);
+		result->set_error_message("Task execution failed. State: " +
 			std::to_string(task->get_state()) +
-			", Error: " + std::to_string(task->get_error());
+			", Error: " + std::to_string(task->get_error()));
 	}
 	else
 	{
 		protocol::HttpResponse *http_resp = task->get_resp();
-		result->status_code = atoi(http_resp->get_status_code());
 
-		if (result->status_code != 200)
+		int code = atoi(http_resp->get_status_code());
+		result->set_status_code(code);
+
+		if (code != 200)
 		{
 			resp->state = RESPONSE_NETWORK_ERROR;
-			result->success = false;
-			result->error_message = "HTTP error: " +
+			result->set_success(false);
+			result->set_error_message("HTTP error: " +
 				std::string(http_resp->get_status_code()) +
-				" " + http_resp->get_reason_phrase();
+				" " + http_resp->get_reason_phrase());
 
 		}
 		else
 		{
 			resp->state = RESPONSE_SUCCESS;
-			result->success = true;
+			result->set_success(true);
 		}
 	}
 
 	// user may waiting at get_chunk(), so use a chunk to send error
-	if (resp->state != RESPONSE_SUCCESS && req->stream && result->msgqueue)
+	if (resp->state != RESPONSE_SUCCESS && ctx->is_async_streaming())
 	{
 		auto chunk = new ChatCompletionChunk();
 		chunk->state = resp->state;
-		msgqueue_put(chunk, result->msgqueue);
+		result->msg_queue_put(chunk);
 	}
 
-	result->promise->set_value(std::move(resp));
-	delete result->promise;
+	// should this logic move inside AsyncResultPtr ?
+	result->get_promise()->set_value(std::move(resp));
+	delete result->get_promise();
+	result->decref();
 }
 
 AsyncResult LLMClient::chat_completion_async(ChatCompletionRequest& request)
@@ -658,17 +541,13 @@ AsyncResult LLMClient::chat_completion_async(ChatCompletionRequest& request)
 
 	if (request.stream)
 	{
-		result.msgqueue = msgqueue_create(request.max_tokens + 2,
-										  sizeof (struct AsyncResult));
+		result.msg_queue_create(request.max_tokens + 2);
 	}
 
 	SessionContext *ctx = new SessionContext(&request, response,
 											 nullptr, nullptr,
 											 false);
-	ctx->async_result = &result; // TODO:
-
-	result.promise = new WFPromise<ChatCompletionResponse *>();
-	result.future = result.promise->get_future();
+	ctx->set_async_result(&result);
 
 	auto cb_for_async = std::bind(
 		&LLMClient::async_callback,
@@ -676,7 +555,7 @@ AsyncResult LLMClient::chat_completion_async(ChatCompletionRequest& request)
 		std::placeholders::_1,
 		std::placeholders::_2,
 		std::placeholders::_3,
-		&result // TODO:
+		ctx // TODO: this is not straight forward, but easy to manage
 	);
 
 	ctx->set_callback(std::move(cb_for_async));
@@ -685,11 +564,5 @@ AsyncResult LLMClient::chat_completion_async(ChatCompletionRequest& request)
 	task->start();
 
 	return result;
-}
-
-ChatCompletionResponse *AsyncResult::get_response()
-{
-	ChatCompletionResponse *resp = this->future.get();
-	return resp;
 }
 
