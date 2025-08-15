@@ -82,7 +82,10 @@ This is the very beginning of a multi-layer LLM interaction framework. Here's th
 - [ ] Custom formats (Planned)
 </details>
 
-## 3. Quick Start
+## 3. Compile
+
+<details>
+<summary><strong>Very Easy to Compile with Bazel or CMake</strong> (Click to expand)</summary>
 
 ### 3.1 Prerequisites
 
@@ -116,12 +119,15 @@ cmake .. -D Workflow_DIR=/PATH/TO/WORKFLOW
 make
 ./demo <your_api_key>
 ```
+</details>
 
-## 4. Usage
+## 4. Quick Start
 
-### 4.1 Basic chat demo
+### 4.1 Chat Demo
 
 This exmaple shows the basic steps to chat with LLMs.
+
+Here is a one round chat , we can use any of the three kinds of APIs : `synchronous`, `aynchronous` and `task-based`.
 
 ```
 🧑‍💻 user request 'hi'
@@ -136,32 +142,110 @@ This exmaple shows the basic steps to chat with LLMs.
   🧑‍💻 callback()
 ```
 
-🤖 Code Example
+🤖 **1. Synchronous API**
+
+Let's begin with some simple one :`chat_completion_sync()` .
 
 ```cpp
-#include "llm_client.h"
-using namespace wfai;
-
-int main(int argc, char *argv[])
+int main()
 {
-    LLMClient client("YOUR_API_KEY"); // build a client by `api_key`. support `base_url` and DeepSeek is default
+ 	LLMClient client("YOUR_API_KEY"); // build a client by `api_key`. support `base_url` and DeepSeek is default
 
-    ChatCompletionRequest request;
-    request.messages.push_back({"user", "hi"});
+	ChatCompletionRequest request;
+	request.messages.push_back({"user", "hi"});
 
 	ChatCompletionResponse response;
-    auto result = client.chat_completion_sync(request, response);
+	SyncResult result = client.chat_completion_sync(request, response);
 
 	if (result.success)
 		printf("%s\n", response.choices[0].message.content.c_str());
 	else
 		printf("Request Failed : %s\n", result.error_message.c_str());
 
-    return 0;
+	return 0;
 }
 ```
 
-### 4.2 Basic Tool Calling
+🤖 **2. Asynchronous API**
+
+If we use **streaming** mode to receive every chunk from LLM servers, we can use `chat_completion_async()` which is similar to the generator in Python.
+
+```cpp
+int main()
+{
+	LLMClient client("YOUR_API_KEY");
+	ChatCompletionRequest request;
+	request.stream = true; // set this to use streaming
+	request.messages.push_back({"user", "hi"});
+
+	AsyncResult result = client.chat_completion_async(request);
+
+	// ... you may do anything else until you need the data ...
+
+	while (true)
+	{
+		ChatCompletionChunk *chunk = result.get_chunk();
+		if (!chunk /*non-streaming*/ || chunk->state != RESPONSE_SUCCESS)
+			break;
+
+		if (!chunk->choices.empty() && !chunk->choices[0].delta.content.empty())
+			printf("%s", chunk->choices[0].delta.content.c_str());
+
+		if (chunk->last_chunk())
+			break;
+	}
+
+	// if non streaming mode, use get_response()
+	//ChatCompletionResponse *response = result.get_response();
+}
+```
+
+🤖 **3. Task API**
+
+Task-based APIs is useful for organizing our task graph.
+
+In this example we use `create_chat_task()` so we can create a **WFHttpChunkedTask**, which can be used with any other workflow task, push_back into a SeriesWork, ParalleWork, or a [DAG in workflow](https://github.com/sogou/workflow/blob/master/docs/en/tutorial-11-graph_task.md) .
+
+```cpp
+
+int main()
+{
+	LLMClient client("YOUR_API_KEY");
+	ChatCompletionRequest request;
+	request.model = "deepseek-reasoner"; // set to use model DeepSeek-R1
+	request.messages.push_back({"user", "hi"});
+
+	auto *task = client.create_chat_task(request, extract, callback);
+	task->start();
+
+	// pause or use wait_group.wait()
+}
+
+// here we get each chunk
+void extract(WFHttpChunkedTask *task, ChatCompletionRequest *req, ChatCompletionChunk *chunk)
+{
+	if (!chunk->choices.empty())
+	{
+		if (!chunk->choices[0].delta.reasoning_content.empty())
+			printf("%s", chunk->choices[0].delta.reasoning_content.c_str());
+		else if (chunk->choices[0].delta.content.empty())
+			printf("%s", chunk->choices[0].delta.content.c_str());
+	}
+}
+
+// here we get the final response, both streaming or non streaming
+void callback(WFHttpChunkedTask *task, ChatCompletionRequest *req, ChatCompletionResponse *resp)
+{
+	// if (task->get_state() == WFT_STATE_SUCESS)
+
+	if (req->model == "deepseek-reasoner")
+		printf("%s\n", resp->choices[0].message.reasoning_content.c_str());
+	printf("%s\n", resp->choices[0].message.content.c_str());
+}
+
+```
+
+### 4.2 Tool Calling
 
 This example shows how to use function call as tools.
 
@@ -301,7 +385,8 @@ The current temperature in Beijing is 30°C and in Shenzhen it is 28°C. The tim
 | Example | Description |
 |---------|-------------|
 | [sync_demo.cc](./examples/sync_demo.cc) | Most simplest demo in synchronous API |
-| [demo.cc](./examples/demo.cc) | Asynchronous API which can create task for Graph |
+| [async_demo.cc](./examples/async_demo.cc) | Asynchronous API to show the usage of getting streaming chunk |
+| [task_demo.cc](./examples/task_demo.cc) | Task API which is able to create tasks for Graph, also asynchronous |
 | [deepseek_chatbot.cc](./examples/deepseek_chatbot.cc) | DeepSeek chatbot implementation for multi round session with memory |
 | [tool_call.cc](./examples/tool_call.cc) | Basic function calling with single tool |
 | [parallel_tool_call.cc](./examples/parallel_tool_call.cc) | Demonstrates parallel execution of multiple tools |
