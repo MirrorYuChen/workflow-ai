@@ -4,19 +4,22 @@
 
 </div>
 
-**Workflow AI** provides a high-performance C++ library functionally similar to LangChain and LangGraph by interacting with Large Language Models (LLMs) and extends the task serial/parallel orchestration capabilities in  **[C++ Workflow](https://github.com/sogou/workflow)**.
+**Workflow AI** provides a high-performance C++ library functionally similar to LangChain and LangGraph by interacting with Large Language Models (LLMs) and extends the task serial/parallel orchestration capabilities in  **[C++ Workflow](https://github.com/sogou/workflow)** .
 
 Modern LLMs applications increasingly require not just **API requests** but also complex **tool calls** and **agent orchestration**. By abstracting the complexity of mixed I/O and compute workflows, this library makes LLMs integration easy and efficient for all C++ applications.
+
+👉 [ [中文文档看这里！](/README_cn.md) ]
 
 ## 1. Features
 
 - 💬 **Chatbot**: Basic demo which can be use directly as a chatbot
-- 🚀 **High Performance**: Built on C++ Workflow for efficient async non-blocking I/O and Computation
-- 📒 **Memory**: Simple memory module for multi round sessions
-- 🔧 **Function Calling**: Native support for LLM function/tool calling
-- ⚡ **Parallel Graph Execution**: Execute multiple tool calls in parallel asynchronously
-- 🌊 **Streaming Support**: Real-time streaming responses
-- 🛠️ **Client / Proxy**: Create task as Client or Proxy. Server is comming soon
+- 🔧 **Tool Calls**: Native support for LLM function/tool calling
+- 📒 **Memory**: Simple memory module for multple round sessions
+- ➡️ **Task DAG**：Build DAG with task based on C++ Workflow
+- 🌊 **Streaming Support**: Real-time streaming responses with Sync / Async / Task APIs
+- ⚡️ **Parallel Execution**: Execute multiple tool calls in parallel
+- 🚀 **High Performance**: Efficient asynchronous non-blocking Network I/O and Computation
+- 📮 **Client / Proxy**: Use as Client or Proxy. Server is comming soon
 
 
 ## 2. RoadMap
@@ -26,46 +29,47 @@ Modern LLMs applications increasingly require not just **API requests** but also
 This is the very beginning of a multi-layer LLM interaction framework. Here's the implementation status and future plans:
 
 ### 2.1 Core Features
-1. **Model Interaction Layer** (Partial)
-   - [x] Task → Model → Callback
-   - [x] Task → Model → Function → Model → Callback
-   - [x] Streaming response (SSE)
-   - [ ] Streamable protocol
+1. **Model Interaction Layer** 
+   - [x] chat : Task → Model → Callback
+   - [x] tool : Task → Model → Function → Model → Callback
+   - [x] chat : Task + Get Memory → Model → Callback + Save Memory
+   - [x] Streaming response by SSE
+   - [ ] Streamable HTTP protocol
    - [ ] Model KVCache loading
    - [ ] Prefill/decode optimization
 
-2. **Tool Calling Layer** (Partial)
+2. **Tool Calling Layer** 
    - [x] Single tool execution
    - [x] Parallel tool execution
-   - [ ] Workflow native task integration
+   - [ ] Workflow native task example (In progress)
    - [ ] MCP Framework (Multi-tool Coordination)
      - [ ] Local command execution (e.g., ls, grep)
      - [ ] Remote RPC integration
         
-3. **Memory Storage Layer** (Partial)
+3. **Memory Storage Layer** 
    - [x] Context in-memory storage
    - [ ] Offload local disk storage
    - [ ] Offload distributed storage
 
 ### 2.2 API Modes
-- [x] Asynchronous Task API (Done)
-- [x] Synchronous API (2025.August.01)
-- [ ] Semi-Sync API (In Progress)
+- [x] Asynchronous Task API 
+- [x] Synchronous API (Done. 2025.August.01)
+- [ ] Semi-Sync API (Done. 2025.August.16)
 
 ### 2.3 Multi-modal Support
-- [x] Text-to-text (Done)
-- [ ] Text-to-image (In progress)
-- [ ] Text-to-speech (Planned)
-- [ ] Embeddings (Planned)
+- [x] Text-to-text
+- [ ] Text-to-image
+- [ ] Text-to-speech
+- [ ] Embeddings
 
 ### 2.4 Model Providers
-- [x] DeepSeek API (Done)
-- [x] OpenAI-compatible APIs (Done)
-- [ ] Claude API (In progress)
+- [x] DeepSeek API
+- [x] OpenAI-compatible APIs
+- [ ] Claude API (Planned)
 - [ ] Local model integration (Planned)
 
 ### 2.5 Network Modes
-- [x] Client mode (Done)
+- [x] Client mode
 - [x] Proxy mode (Partial)
 - [ ] Server mode (In progress)
    - [ ] Session state management
@@ -77,15 +81,15 @@ This is the very beginning of a multi-layer LLM interaction framework. Here's th
    - [ ] Dynamic prompt building
 
 ### 2.7 Output Structures
-- [x] JSON (Done)
-- [ ] Protobuf (In progress)
-- [ ] Custom formats (Planned)
+- [x] JSON
+- [ ] Protobuf
+- [ ] Custom formats
 </details>
 
 ## 3. Compile
 
 <details>
-<summary><strong>Very Easy to Compile with Bazel or CMake</strong> (Click to expand)</summary>
+<summary><strong>Easy to Compile with Bazel or CMake</strong> (Click to expand)</summary>
 
 ### 3.1 Prerequisites
 
@@ -133,13 +137,13 @@ Here is a one round chat , we can use any of the three kinds of APIs : `synchron
 🧑‍💻 user request 'hi'
          ↓
     ┌───────────┐
-    │ Chat Task │ // asynchronous network task
+    │ Chat Task │ // asynchronous task API:
     │  to LLMs  │ // send request get response
     └───────────┘
          ↓
-  🧑‍💻 extract() // for streaming
+  🧑‍💻 extract()    // for streaming get chunk
          ↓
-  🧑‍💻 callback()
+  🧑‍💻 callback()   // callback and task end
 ```
 
 🤖 **1. Synchronous API**
@@ -249,12 +253,12 @@ void callback(WFHttpChunkedTask *task, ChatCompletionRequest *req, ChatCompletio
 
 This example shows how to use function call as tools.
 
-The following task flow seems complecated but it just show the internal architecture.
+The following task flow seems more complicated just because it includes the internal architecture. Here are only 3 steps we need to pay attention to.
 
 ```
 👩‍💻 preparation: register functions
          ↓
-👩‍💻 user request for multiple info
+👩‍💻 user request: ask for multiple information
          ↓
     ┌───────────┐
     │ Chat Task │ // asynchronous network task
@@ -282,9 +286,9 @@ create WFGoTask for local function computing
   👩‍💻 callback()
 ```
 
-🤖 Code Example. Here are 3 steps.
+🤖 Code Example. 
 
-**Step-1**  : Define our `function`. 
+**Step-1**  : Define our `function` which is the tool call.
 
 This preparation only need to do once before all the requests.
 
@@ -324,7 +328,7 @@ int main()
 
 **Step-3** : Start a request with tools.  
 
-As long as we have function in manager and set `request.tool_choice`, LLMs will tell us how to use corresponding tools and this library will help us execute the tools automatically. Then the library will give the response to LLMs and let it summarise by the function results.
+As long as we have function in manager and set `request.tool_choice`, LLMs will tell us how to use corresponding tools. After this information is returned, this library will help us automatically execute the tool (that is, some functions we have registered). The library  will then automatically provide the response to LLM, allowing it to generate a summary based on the function results, and LLM will return the final result to us.
 
 ```cpp
 {
