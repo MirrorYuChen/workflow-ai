@@ -35,6 +35,7 @@ EXAMPLES = [
 	"sync_demo",
 	"async_demo",
 	"task_demo",
+	"ollama_client",
 	"deepseek_chatbot",
 	"tool_call",
 	"parallel_tool_call",

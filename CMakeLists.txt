@@ -29,6 +29,7 @@ endif()
 add_library(${LIBRARY_NAME} STATIC
 	src/chat_request.cc
 	src/chat_response.cc
+	src/llm_session.cc
 	src/llm_client.cc
 	src/llm_memory.cc
 	src/llm_function.cc

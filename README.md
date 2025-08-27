@@ -113,15 +113,17 @@ bazel run :deepseek_chatbot -- <your_api_key>
 ### 3.3 Build with CMake
 
 ```bash
-mkdir cmake.build && cd cmake.build
-
 # Download workflow source code and make for the first time
 # git clone https://github.com/sogou/workflow.git /PATH/TO/WORKFLOW
 # cd /PATH/TO/WORKFLOW && make
 
+# build
+mkdir cmake.build && cd cmake.build
 cmake .. -D Workflow_DIR=/PATH/TO/WORKFLOW
 make
-./demo <your_api_key>
+
+# run sync_demo
+./sync_demo <your_api_key>
 ```
 </details>
 
