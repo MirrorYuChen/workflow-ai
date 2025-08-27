@@ -99,6 +99,11 @@ struct Buffer
 		size = 0;
 		capacity = 0;
 	}
+
+	bool empty()
+	{
+		return ptr == nullptr ? true : false;
+	}
 };
 
 class ChatResponse
@@ -192,6 +197,7 @@ public:
 										this->buffer.size);
 	}
 	void clear() override;
+	bool buffer_empty() { return this->buffer.empty(); }
 
 private:
 	Buffer buffer;

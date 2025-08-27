@@ -162,8 +162,19 @@ WFHttpChunkedTask *LLMClient::create(SessionContext *ctx)
 
 void LLMClient::callback(WFHttpChunkedTask *task, SessionContext *ctx)
 {
-	if (!ctx->req->stream)
-		ctx->resp->parse_json();
+	const void *body;
+	size_t len;
+
+	if (task->get_state() == WFT_STATE_SUCCESS && !ctx->req->stream)
+	{
+		if (ctx->resp->buffer_empty())
+		{
+			task->get_resp()->get_parsed_body(&body, &len);
+			ctx->resp->ChatResponse::parse_json((const char *)body, len);
+		}
+		else
+			ctx->resp->parse_json();
+	}
 	// TODO: if (!ret) set error
 
 	if (ctx->callback)
@@ -327,7 +338,7 @@ void LLMClient::extract(WFHttpChunkedTask *task, SessionContext *ctx)
 	protocol::HttpMessageChunk *msg_chunk = task->get_chunk();
 	const void *msg;
 	size_t size;
-	
+
 	if (!msg_chunk->get_chunk_data(&msg, &size))
 	{
 		// TODO : mark error : invalid chunk data
