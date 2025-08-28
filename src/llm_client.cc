@@ -188,24 +188,39 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 {
 	ChatCompletionRequest *req = ctx->req;
 	ChatCompletionResponse *resp = ctx->resp;
+	const void *body;
+	size_t len;
+	bool ret = true; // TODO: let's take streaming parse_json return true
 
-	if (!req->stream)
+	// for streaming:
+	// 	already parse chunk and fill resp in append_tool_call_from_chunk()
+	// for non streaming:
+	// 	need to parse resp here
+	if (task->get_state() == WFT_STATE_SUCCESS && !ctx->req->stream)
 	{
-		if(!resp->parse_json())
+		if (resp->buffer_empty())
 		{
-			if (ctx->callback)
-				ctx->callback(task, req, resp);
-
-			delete ctx;
-			return;
+			task->get_resp()->get_parsed_body(&body, &len);
+			ret = resp->ChatResponse::parse_json((const char *)body, len);
+		}
+		else
+		{
+			ret = resp->parse_json();
 		}
 	}
 
 	// parse resp
 	if (task->get_state() != WFT_STATE_SUCCESS ||
+		!ret ||
 		resp->choices.empty() ||
 		resp->choices[0].message.tool_calls.empty())
+	{
+		if (ctx->callback)
+			ctx->callback(task, req, resp);
+
+		delete ctx;
 		return;
+	}
 
 	// append the llm response
 	Message resp_msg;
