@@ -161,6 +161,7 @@ public:
 	bool is_stream;					// 是否为流式响应
 	bool is_done;					// for stream : is last chunk
 	Usage usage;					// 该对话补全请求的用量信息
+	std::string error;				// 错误信息
 
 public:
 	ChatResponse() : state(RESPONSE_UNDEFINED), created(0), is_done(false) { }

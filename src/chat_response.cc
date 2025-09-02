@@ -48,6 +48,7 @@ ChatResponse::ChatResponse(ChatResponse&& move)
 	system_fingerprint = std::move(move.system_fingerprint);
 	choices = std::move(move.choices);
 	usage = std::move(move.usage);
+	error = std::move(move.error);
 	is_stream = move.is_stream;
 	is_done = move.is_done;
 	state = move.state;
@@ -69,6 +70,7 @@ ChatResponse& ChatResponse::operator=(ChatResponse&& move)
 		system_fingerprint = std::move(move.system_fingerprint);
 		choices = std::move(move.choices);
 		usage = std::move(move.usage);
+		error = std::move(move.error);
 		is_stream = move.is_stream;
 		is_done = move.is_done;
 		state = move.state;
@@ -88,6 +90,7 @@ void ChatResponse::clear()
 	this->created = 0;
 	this->model.clear();
 	this->system_fingerprint.clear();
+	this->error.clear();
 
 	for (auto& choice : this->choices)
 		choice.clear();
@@ -296,6 +299,19 @@ bool ChatResponse::parse_json(const char *msg, size_t size)
 	}
 
 	const json_object_t *obj = json_value_object(root);
+
+	const json_value_t *error_val = json_object_find("error", obj);
+	if (error_val && json_value_type(error_val) == JSON_VALUE_OBJECT)
+	{
+		const json_object_t *error_obj = json_value_object(error_val);
+		const json_value_t *message_val = json_object_find("message", error_obj);
+		if (message_val && json_value_type(message_val) == JSON_VALUE_STRING)
+			error = json_value_string(message_val);
+
+		this->state = RESPONSE_API_ERROR;
+		json_value_destroy(root);
+		return false;
+	}
 
 	const json_value_t *id_val = json_object_find("id", obj);
 	if (id_val && json_value_type(id_val) == JSON_VALUE_STRING)

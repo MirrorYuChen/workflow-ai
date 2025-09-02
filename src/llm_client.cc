@@ -236,6 +236,7 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 	req->tools.clear();
 
 	ToolCallsData *tc_data = new ToolCallsData();
+	bool mgr_ret = false;
 
 	// calculate
 	if (resp->choices[0].message.tool_calls.size() == 1)
@@ -251,17 +252,18 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 			tc.function.arguments,
 			res);
 
-		next->user_data = tc_data;
-
-		auto callback_handler = std::bind(
-			&LLMClient::tool_calls_callback,
-			this,
-			std::placeholders::_1,
-			ctx
-		);
-
 		if (next) // should return WFEmptyTask instead of nullptr
 		{
+			mgr_ret = true;
+			next->user_data = tc_data;
+
+			auto callback_handler = std::bind(
+				&LLMClient::tool_calls_callback,
+				this,
+				std::placeholders::_1,
+				ctx
+			);
+
 			next->set_callback(std::move(callback_handler));
 			series_of(task)->push_back(next);
 		}
@@ -298,6 +300,17 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 		}
 
 		series_of(task)->push_back(pwork);
+	}
+
+	if (!mgr_ret)
+	{
+		resp->state = RESPONSE_TOOLS_ERROR;
+
+		if (ctx->callback)
+			ctx->callback(task, req, resp);
+
+		delete tc_data;
+		delete ctx;
 	}
 }
 

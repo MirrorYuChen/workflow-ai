@@ -35,6 +35,8 @@ enum
 
 	RESPONSE_PARSE_ERROR		=  11, // parse json error
 	RESPONSE_CONTENT_ERROR		=  12, // lack of some content
+	RESPONSE_API_ERROR			=  13, // API returned error
+	RESPONSE_TOOLS_ERROR		=  14, // Cannot find tools in function manager
 };
 
 ///// for request and response /////
