@@ -265,7 +265,7 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 			);
 
 			next->set_callback(std::move(callback_handler));
-			series_of(task)->push_back(next);
+			series_of(task)->push_front(next);
 		}
 	}
 	else
@@ -299,7 +299,7 @@ void LLMClient::callback_with_tools(WFHttpChunkedTask *task,
 			}
 		}
 
-		series_of(task)->push_back(pwork);
+		series_of(task)->push_front(pwork);
 	}
 
 	if (!mgr_ret)
@@ -335,7 +335,7 @@ void LLMClient::p_tool_calls_callback(const ParallelWork *pwork,
 	ctx->resp->clear(); // clear resp for next round
 
 	auto *next = this->create(ctx);
-	series_of(pwork)->push_back(next);
+	series_of(pwork)->push_front(next);
 	delete tc_data;
 }
 
@@ -357,7 +357,7 @@ void LLMClient::tool_calls_callback(WFGoTask *task, SessionContext *ctx)
 	ctx->resp->clear(); // clear resp for next round
 
 	auto *next = this->create(ctx);
-	series_of(task)->push_back(next);
+	series_of(task)->push_front(next);
 	delete tc_data;
 }
 
