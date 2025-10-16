@@ -5,6 +5,8 @@ set(CMAKE_BUILD_TYPE RelWithDebInfo)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 
+find_package(OpenSSL REQUIRED)
+
 # 查找 Workflow
 if(Workflow_DIR)
 	find_package(Workflow QUIET CONFIG HINTS ${Workflow_DIR})
@@ -49,6 +51,7 @@ add_library(${LIBRARY_NAME} STATIC
 )
 target_include_directories(${LIBRARY_NAME} PUBLIC 
 	${CMAKE_CURRENT_SOURCE_DIR}/src
+	${OPENSSL_INCLUDE_DIR}
 )
 
 # 查找并设置 workflow 库
@@ -76,7 +79,7 @@ install(DIRECTORY src/ DESTINATION include FILES_MATCHING PATTERN "*.h")
 
 set(LINK_LIBS)
 if(APPLE)
-	set(LINK_LIBS pthread ssl crypto ${LIBRARY_NAME} workflow)
+	set(LINK_LIBS pthread ${OPENSSL_LIBRARIES} ${LIBRARY_NAME} workflow)
 else()
 	set(LINK_LIBS pthread ssl crypto rt ${LIBRARY_NAME} workflow)
 endif()
@@ -85,7 +88,7 @@ file(GLOB EXAMPLES_SRC "examples/*.cc")
 foreach(EXAMPLE_FILE ${EXAMPLES_SRC})
 	get_filename_component(EXE_NAME ${EXAMPLE_FILE} NAME_WE)
 	add_executable(${EXE_NAME} ${EXAMPLE_FILE})
-	target_link_libraries(${EXE_NAME} PRIVATE ${LINK_LIBS} ${LIBRARY_NAME} workflow)
+	target_link_libraries(${EXE_NAME} PRIVATE ${LINK_LIBS})
 endforeach()
 
 # Add test executables
@@ -93,5 +96,5 @@ file(GLOB TEST_SRC "test/*.cc")
 foreach(TEST_FILE ${TEST_SRC})
 	get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
 	add_executable(${TEST_NAME} ${TEST_FILE})
-	target_link_libraries(${TEST_NAME} PRIVATE ${LINK_LIBS} ${LIBRARY_NAME} workflow)
+	target_link_libraries(${TEST_NAME} PRIVATE ${LINK_LIBS})
 endforeach()
